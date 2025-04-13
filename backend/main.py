@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware # Import CORSMiddleware
 from dotenv import load_dotenv # Import load_dotenv
 import os # Import os to access environment variables
 import uvicorn
@@ -27,6 +28,26 @@ app = FastAPI(
     description="API endpoints for the AI Concierge application.",
     version="0.1.0",
 )
+
+# --- CORS Middleware Configuration ---
+# Define the list of origins allowed to make requests to this backend.
+# For development, this includes your frontend's address.
+# Use environment variables for production origins.
+origins = [
+    "http://localhost:3000", # Default Next.js port (if used)
+    "http://localhost:3001", # The origin reported in your error message
+    # Add other origins as needed (e.g., your deployed frontend URL)
+    # "https://your-deployed-frontend.com",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins, # List of allowed origins
+    allow_credentials=True, # Allow cookies to be included in requests
+    allow_methods=["*"], # Allow all methods (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"], # Allow all headers
+)
+# --- End CORS Middleware Configuration ---
 
 # --- Include API Routers ---
 # Include the chat router with a prefix
