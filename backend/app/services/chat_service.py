@@ -3,6 +3,7 @@
 import os
 from typing import Dict, List, Any
 import logging
+import io # Add io
 
 import openai # For logging information
 
@@ -196,6 +197,81 @@ class ChatService:
 
         logger.info(f"Generated reply for session {session_id}: '{ai_reply}'")
         return ai_reply
+
+
+    async def transcribe_audio(self, audio_bytes: bytes, filename: str = "audio.webm") -> str:
+        """
+        Transcribes audio bytes using the OpenAI Whisper API.
+        Requires audio_bytes and a filename hint for the API.
+        """
+        if not self.openai_client:
+            logger.error("OpenAI client not initialized. Cannot transcribe audio.")
+            return "Error: AI service connection failed."
+
+        logger.info(f"Transcribing audio file '{filename}' ({len(audio_bytes)} bytes)...")
+        try:
+            # Wrap bytes in a file-like object for the API
+            audio_file = io.BytesIO(audio_bytes)
+            # Provide a filename, which Whisper uses to infer format/type
+            # The tuple format is (filename, file-like object)
+            transcription = self.openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=(filename, audio_file) # Pass as a tuple
+            )
+            logger.info(f"Transcription successful: '{transcription.text}'")
+            return transcription.text
+        except openai.APIConnectionError as e:
+            logger.error(f"OpenAI API request failed to connect during transcription: {e}")
+            return "Error: Could not connect to the AI service for transcription."
+        except openai.RateLimitError as e:
+            logger.error(f"OpenAI API request exceeded rate limit during transcription: {e}")
+            return "Error: The AI service is currently busy. Please try again later."
+        except openai.AuthenticationError as e:
+             logger.error(f"OpenAI API authentication failed during transcription: {e}. Check your API key.")
+             return "Error: AI service authentication failed."
+        except openai.APIStatusError as e:
+            logger.error(f"OpenAI API returned an API Error during transcription: {e.status_code} - {e.response}")
+            return f"Error: The AI service returned an error during transcription (Status: {e.status_code})."
+        except Exception as e:
+            logger.error(f"An unexpected error occurred during OpenAI transcription: {e}", exc_info=True)
+            return "Error: An unexpected error occurred during audio transcription."
+
+
+    async def process_audio_message(self, session_id: str, audio_bytes: bytes, filename: str) -> str:
+        """
+        Processes an incoming audio message.
+        Transcribes audio, then uses the text for RAG and chat completion.
+        """
+        logger.info(f"Processing audio message for session {session_id} (filename: {filename})")
+
+        # 1. Transcribe Audio
+        transcribed_text = await self.transcribe_audio(audio_bytes, filename)
+
+        # Check for transcription errors
+        if transcribed_text.startswith("Error:"):
+            logger.error(f"Transcription failed for session {session_id}: {transcribed_text}")
+            # Return the transcription error directly, maybe prefix it
+            return f"Audio Processing Error: {transcribed_text}"
+
+        logger.info(f"Transcribed text for session {session_id}: '{transcribed_text}'")
+
+        # --- Now use the transcribed text like a regular message ---
+
+        # 2. Retrieve conversation history
+        history = self._get_conversation_history(session_id)
+
+        # 3. Perform RAG retrieval using the transcribed text
+        context = self._retrieve_rag_context(transcribed_text)
+
+        # 4. Call OpenAI API with transcribed text, history, and context
+        ai_reply = self._call_openai_api(transcribed_text, history, context)
+
+        # 5. Update conversation history (using transcribed text as user message)
+        self._update_conversation_history(session_id, transcribed_text, ai_reply)
+
+        logger.info(f"Generated reply for session {session_id} from audio: '{ai_reply}'")
+        return ai_reply
+
 
 # --- Optional: Singleton pattern or dependency injection setup ---
 # For simplicity in POC, we can create a single instance here

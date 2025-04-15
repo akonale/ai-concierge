@@ -1,7 +1,7 @@
 // frontend/src/components/ChatPanel.tsx
 'use client'; // Add this directive for React hooks (useState, useEffect)
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react'; // Added useCallback
 import { v4 as uuidv4 } from 'uuid'; // Import uuid to generate session IDs
 
 // Define the structure for a message object
@@ -22,9 +22,14 @@ const ChatPanel: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   // State to store the unique session ID for this chat instance
   const [sessionId, setSessionId] = useState<string>('');
+  // State for recording status
+  const [isRecording, setIsRecording] = useState<boolean>(false);
 
   // Ref for the chat history div to enable auto-scrolling
   const chatHistoryRef = useRef<HTMLDivElement>(null);
+  // Refs for MediaRecorder and audio chunks to avoid re-renders
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Generate a unique session ID when the component mounts
   useEffect(() => {
@@ -37,6 +42,129 @@ const ChatPanel: React.FC = () => {
       chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
     }
   }, [messages]); // Dependency array includes messages
+
+
+  // Function to send recorded audio to the backend
+  const sendAudioToBackend = useCallback(async (audioBlob: Blob) => {
+    if (!sessionId) {
+      console.error("Session ID is missing, cannot send audio.");
+      setMessages(prev => [...prev, { role: 'error', content: 'Error: Session ID missing.' }]);
+      return;
+    }
+    if (audioBlob.size === 0) {
+        console.error("Audio blob is empty, not sending.");
+        // Optionally inform the user
+        // setMessages(prev => [...prev, { role: 'system', content: 'Recording was empty.' }]);
+        return;
+    }
+
+    console.log("Sending audio blob:", audioBlob);
+    setIsLoading(true); // Indicate loading state
+
+    const formData = new FormData();
+    // Whisper needs a filename to help determine the format.
+    // Browsers often record in webm or ogg with opus codec. '.webm' is a safe bet.
+    formData.append('audio_file', audioBlob, 'recording.webm');
+    formData.append('session_id', sessionId);
+
+    try {
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/chat/audio`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        body: formData, // Send FormData directly, fetch handles headers
+      });
+
+      setIsLoading(false); // Reset loading state
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to parse error response.' }));
+        console.error('API Error Response (Audio):', errorData);
+        setMessages(prevMessages => [...prevMessages, { role: 'error', content: `Audio Error: ${errorData.detail || response.statusText}` }]);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.reply) {
+        // Add AI's response to the chat display
+        // Note: We don't add the user's "spoken" message here, only the AI reply.
+        // You could optionally add the transcribed text as a user message if desired.
+        const assistantMessage: Message = { role: 'assistant', content: data.reply };
+        setMessages(prevMessages => [...prevMessages, assistantMessage]);
+      } else {
+        console.error('API response missing reply field (Audio):', data);
+        setMessages(prevMessages => [...prevMessages, { role: 'error', content: 'Error: Received an invalid response from the server.' }]);
+      }
+
+    } catch (error) {
+      setIsLoading(false);
+      console.error('Failed to send audio message:', error);
+      setMessages(prevMessages => [...prevMessages, { role: 'error', content: 'Error: Could not connect to the backend service for audio.' }]);
+    }
+  }, [sessionId]); // Dependency: sessionId
+
+
+  // Function to handle microphone button clicks (start/stop recording)
+  const handleMicClick = useCallback(async () => {
+    if (isRecording) {
+      // --- Stop Recording ---
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop(); // Triggers 'onstop' event
+        // State update (isRecording=false) happens in onstop handler
+         console.log("Stopping recording...");
+      }
+    } else {
+      // --- Start Recording ---
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error("getUserMedia not supported on your browser!");
+        setMessages(prev => [...prev, { role: 'error', content: 'Error: Audio recording is not supported on your browser.' }]);
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        audioChunksRef.current = []; // Clear previous chunks
+
+        // Event handler when data becomes available
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+             console.log("Audio chunk received, size:", event.data.size);
+          }
+        };
+
+        // Event handler when recording stops
+        mediaRecorderRef.current.onstop = () => {
+          console.log("Recording stopped, processing audio chunks...");
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); // Specify MIME type
+          sendAudioToBackend(audioBlob); // Send the complete audio
+          audioChunksRef.current = []; // Clear chunks after processing
+          // Stop tracks to release microphone resource
+          stream.getTracks().forEach(track => track.stop());
+          setIsRecording(false); // Update state after stopping
+           console.log("Microphone released.");
+        };
+
+        // Start recording
+        mediaRecorderRef.current.start();
+        setIsRecording(true); // Update state
+        console.log("Recording started...");
+
+      } catch (err) {
+        console.error("Error accessing microphone:", err);
+        let errorMessage = 'Error: Could not access microphone.';
+        if (err instanceof Error) {
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                errorMessage = 'Error: Microphone permission denied. Please allow access in your browser settings.';
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                 errorMessage = 'Error: No microphone found. Please ensure one is connected and enabled.';
+            }
+        }
+        setMessages(prev => [...prev, { role: 'error', content: errorMessage }]);
+      }
+    }
+  }, [isRecording, sendAudioToBackend]); // Dependencies: isRecording state and the sendAudio function
+
 
   // Function to handle sending a message
   const handleSendMessage = async () => {
@@ -165,19 +293,34 @@ const ChatPanel: React.FC = () => {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
-            disabled={isLoading}
+            disabled={isLoading || isRecording} // Disable input while loading or recording
              // Input: Background, Primary text/border
             className="flex-grow p-3 border-4 border-theme-secondary focus:outline-none text-theme-secondary bg-theme-background disabled:bg-gray-200 disabled:cursor-not-allowed"
           />
+          {/* Send Button */}
           <button
             onClick={handleSendMessage}
-            disabled={isLoading}
+            disabled={isLoading || isRecording || !inputValue.trim()} // Disable send when loading, recording, or input is empty
             // Button: Accent background, Primary text/border, Secondary hover
             className="bg-theme-accent p-3 border-4 border-theme-secondary font-bold text-theme-secondary hover:bg-theme-secondary disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {isLoading ? '...' : 'Send'}
+            {isLoading && !isRecording ? '...' : 'Send'} {/* Show loading only if not recording */}
           </button>
-           {/* Add Voice Button later */}
+          {/* Microphone Button */}
+          <button
+            onClick={handleMicClick}
+            disabled={isLoading} // Disable mic only when actively sending/processing (text or audio)
+            title={isRecording ? "Stop Recording" : "Start Recording"}
+            // Button: Similar style, maybe different color when recording
+            className={`p-3 border-4 border-theme-secondary font-bold text-theme-secondary hover:bg-theme-secondary disabled:bg-gray-400 disabled:cursor-not-allowed ${
+              isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-theme-accent' // Red background when recording
+            }`}
+          >
+            {/* Simple SVG Mic Icon */}
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+            </svg>
+          </button>
         </div>
       </div>
     </main>

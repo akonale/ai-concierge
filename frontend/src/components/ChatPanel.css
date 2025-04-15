@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+.submit-button {
+    @apply bg-red-400 p-3 border-4 border-yellow-300 font-bold text-black hover:bg-red-400 disabled:bg-gray-400 disabled:cursor-not-allowed
+}
