@@ -40,7 +40,7 @@ async def handle_chat_message(
         )
 
         # Return the successful response
-        return ChatResponse(reply=ai_reply, session_id=request.session_id)
+        return ChatResponse(reply=ai_reply, session_id=request.session_id, transcribed_text=request.message)
 
     except Exception as e:
         # Log the error for debugging
@@ -56,6 +56,7 @@ async def handle_chat_message(
 @router.post(
     "/audio",
     response_model=ChatResponse,
+    response_model_exclude_none=False, # Ensure 'transcribed_text: null' is included if transcription fails
     summary="Process a user audio message",
     description="Receives an audio file and session ID, transcribes the audio using OpenAI Whisper, processes the transcribed text using RAG and OpenAI Chat Completion, and returns the AI's reply.",
     tags=["Chat"]
@@ -95,18 +96,23 @@ async def handle_audio_message(
              )
 
         # Process the audio message using the chat service
-        # Pass filename for potential use by Whisper or logging
-        ai_reply = await chat_service.process_audio_message(
+        # This now returns a tuple: (transcribed_text, ai_reply)
+        transcribed_text, ai_reply = await chat_service.process_audio_message(
             session_id=session_id,
             audio_bytes=audio_bytes,
             filename=audio_file.filename # Pass filename
         )
 
-        # Return the successful response
-        return ChatResponse(reply=ai_reply, session_id=session_id)
+        logger.info(f"Sending back {session_id} from audio: '{ai_reply}' for question: '{transcribed_text}'")
+        # Return the successful response, including the transcribed text
+        return ChatResponse(
+            reply=ai_reply,
+            session_id=session_id,
+            transcribed_text=transcribed_text # Include the transcription
+        )
 
     except HTTPException as http_exc:
-        # Re-raise HTTPExceptions directly (e.g., from file validation)
+        # Re-raise HTTPExceptions directly (e.g., from file validation or service layer)
         raise http_exc
     except Exception as e:
         # Log the error for debugging

@@ -32,6 +32,7 @@ class ChatResponse(BaseModel):
     """
     reply: str = Field(..., description="The AI-generated reply to the user's message.")
     session_id: str = Field(..., description="The session identifier, returned for confirmation.")
+    transcribed_text: str = Field(..., description="Transcribed text for audio input")
     # Add other fields later if needed, e.g., suggested actions, debug info
 
     # Example for Pydantic V2 configuration if needed

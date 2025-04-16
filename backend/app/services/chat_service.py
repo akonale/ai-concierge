@@ -1,7 +1,7 @@
 # backend/app/services/chat_service.py
 
 import os
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import logging
 import io # Add io
 
@@ -239,25 +239,36 @@ class ChatService:
             return "Error: An unexpected error occurred during audio transcription."
 
 
-    async def process_audio_message(self, session_id: str, audio_bytes: bytes, filename: str) -> str:
+    async def process_audio_message(self, session_id: str, audio_bytes: bytes, filename: str) -> tuple[str, str]:
         """
         Processes an incoming audio message.
-        Transcribes audio, then uses the text for RAG and chat completion.
+        Transcribes audio, uses the text for RAG and chat completion.
+        Returns a tuple: (transcribed_text, ai_reply).
+        If transcription fails, transcribed_text will be an empty string "" and ai_reply will contain the error.
         """
         logger.info(f"Processing audio message for session {session_id} (filename: {filename})")
+        transcribed_text: str = "" # Initialize as empty string
+        ai_reply: str
 
         # 1. Transcribe Audio
-        transcribed_text = await self.transcribe_audio(audio_bytes, filename)
-
-        # Check for transcription errors
-        if transcribed_text.startswith("Error:"):
-            logger.error(f"Transcription failed for session {session_id}: {transcribed_text}")
-            # Return the transcription error directly, maybe prefix it
-            return f"Audio Processing Error: {transcribed_text}"
-
-        logger.info(f"Transcribed text for session {session_id}: '{transcribed_text}'")
+        try:
+            transcribed_text = await self.transcribe_audio(audio_bytes, filename)
+            # Check for transcription errors returned as strings
+            # Check for transcription errors returned as strings
+            if transcribed_text.startswith("Error:"):
+                logger.error(f"Transcription failed for session {session_id}: {transcribed_text}")
+                ai_reply = f"Audio Processing Error: {transcribed_text}"
+                transcribed_text = "" # Ensure transcription is empty string on error
+                return transcribed_text, ai_reply # Return error early
+            # If transcription returns an empty string legitimately, keep it as ""
+            logger.info(f"Transcribed text for session {session_id}: '{transcribed_text}'")
+        except Exception as e:
+             logger.error(f"Unexpected error during transcription call for session {session_id}: {e}", exc_info=True)
+             ai_reply = "Error: An unexpected issue occurred during audio transcription."
+             return "", ai_reply # Return empty string and error early
 
         # --- Now use the transcribed text like a regular message ---
+        # No need to check for None anymore, proceed with the (potentially empty) string
 
         # 2. Retrieve conversation history
         history = self._get_conversation_history(session_id)
@@ -269,10 +280,12 @@ class ChatService:
         ai_reply = self._call_openai_api(transcribed_text, history, context)
 
         # 5. Update conversation history (using transcribed text as user message)
-        self._update_conversation_history(session_id, transcribed_text, ai_reply)
+        # Only update history if both transcription and reply were successful
+        if not ai_reply.startswith("Error:"):
+             self._update_conversation_history(session_id, transcribed_text, ai_reply)
 
-        logger.info(f"Generated reply for session {session_id} from audio: '{ai_reply}'")
-        return ai_reply
+        logger.info(f"Generated reply for session {session_id} from audio: '{ai_reply}' for question: '{transcribed_text}'")
+        return transcribed_text, ai_reply
 
 
 # --- Optional: Singleton pattern or dependency injection setup ---

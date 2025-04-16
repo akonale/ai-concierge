@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid'; // Import uuid to generate session IDs
 
 // Define the structure for a message object
 interface Message {
+  id: string; // Unique ID for each message
   role: 'user' | 'assistant' | 'system' | 'error'; // Added 'system' and 'error' roles
   content: string;
 }
@@ -14,7 +15,7 @@ const ChatPanel: React.FC = () => {
   // State for the list of messages in the conversation
   const [messages, setMessages] = useState<Message[]>([
     // Initial welcome message
-    { role: 'assistant', content: "Welcome! How can I help you plan your stay?" }
+    { id: uuidv4(), role: 'assistant', content: "Welcome! How can I help you plan your stay?" }
   ]);
   // State for the text currently typed in the input field
   const [inputValue, setInputValue] = useState<string>('');
@@ -48,7 +49,7 @@ const ChatPanel: React.FC = () => {
   const sendAudioToBackend = useCallback(async (audioBlob: Blob) => {
     if (!sessionId) {
       console.error("Session ID is missing, cannot send audio.");
-      setMessages(prev => [...prev, { role: 'error', content: 'Error: Session ID missing.' }]);
+      setMessages(prev => [...prev, { id: uuidv4(), role: 'error', content: 'Error: Session ID missing.' }]);
       return;
     }
     if (audioBlob.size === 0) {
@@ -79,26 +80,48 @@ const ChatPanel: React.FC = () => {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Failed to parse error response.' }));
         console.error('API Error Response (Audio):', errorData);
-        setMessages(prevMessages => [...prevMessages, { role: 'error', content: `Audio Error: ${errorData.detail || response.statusText}` }]);
+        setMessages(prevMessages => [...prevMessages, { id: uuidv4(), role: 'error', content: `Audio Error: ${errorData.detail || response.statusText}` }]);
         return;
       }
 
       const data = await response.json();
+      // Log the entire received data object immediately after parsing JSON
+      console.log("Received data from /api/v1/audio:", JSON.stringify(data, null, 2));
+      const newMessages: Message[] = [];
+
+      // Add transcribed user message if it exists as a non-empty string
+      if (typeof data.transcribed_text === 'string' && data.transcribed_text.length > 0) {
+        // Log specifically when deciding to display the message
+        console.log("Displaying transcribed text:", data.transcribed_text);
+        const userMessage: Message = { id: uuidv4(), role: 'user', content: data.transcribed_text };
+        newMessages.push(userMessage);
+      } else if (typeof data.transcribed_text === 'string' && data.transcribed_text.length === 0) {
+         // Log that transcription resulted in an empty string (e.g., silence recorded or transcription failed)
+         console.log('Received empty transcription text from backend.');
+      } else {
+         // Log if the field is missing or not a string (shouldn't happen with current backend model)
+         console.warn('API response issue: transcribed_text field missing or not a string:', data);
+      }
+
+      // Add AI's response if available
       if (data.reply) {
-        // Add AI's response to the chat display
-        // Note: We don't add the user's "spoken" message here, only the AI reply.
-        // You could optionally add the transcribed text as a user message if desired.
-        const assistantMessage: Message = { role: 'assistant', content: data.reply };
-        setMessages(prevMessages => [...prevMessages, assistantMessage]);
+        const assistantMessage: Message = { id: uuidv4(), role: 'assistant', content: data.reply };
+        newMessages.push(assistantMessage);
       } else {
         console.error('API response missing reply field (Audio):', data);
-        setMessages(prevMessages => [...prevMessages, { role: 'error', content: 'Error: Received an invalid response from the server.' }]);
+        // Add error only if reply is missing, transcription might be optional
+        setMessages(prevMessages => [...prevMessages, { id: uuidv4(), role: 'error', content: 'Error: Received an invalid response from the server (missing reply).' }]);
+      }
+
+      // Add the new messages (transcription + reply) to the state
+      if (newMessages.length > 0) {
+        setMessages(prevMessages => [...prevMessages, ...newMessages]);
       }
 
     } catch (error) {
       setIsLoading(false);
       console.error('Failed to send audio message:', error);
-      setMessages(prevMessages => [...prevMessages, { role: 'error', content: 'Error: Could not connect to the backend service for audio.' }]);
+      setMessages(prevMessages => [...prevMessages, { id: uuidv4(), role: 'error', content: 'Error: Could not connect to the backend service for audio.' }]);
     }
   }, [sessionId]); // Dependency: sessionId
 
@@ -116,7 +139,7 @@ const ChatPanel: React.FC = () => {
       // --- Start Recording ---
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error("getUserMedia not supported on your browser!");
-        setMessages(prev => [...prev, { role: 'error', content: 'Error: Audio recording is not supported on your browser.' }]);
+        setMessages(prev => [...prev, { id: uuidv4(), role: 'error', content: 'Error: Audio recording is not supported on your browser.' }]);
         return;
       }
 
@@ -157,10 +180,10 @@ const ChatPanel: React.FC = () => {
             if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                 errorMessage = 'Error: Microphone permission denied. Please allow access in your browser settings.';
             } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                 errorMessage = 'Error: No microphone found. Please ensure one is connected and enabled.';
-            }
-        }
-        setMessages(prev => [...prev, { role: 'error', content: errorMessage }]);
+                  errorMessage = 'Error: No microphone found. Please ensure one is connected and enabled.';
+             }
+         }
+        setMessages(prev => [...prev, { id: uuidv4(), role: 'error', content: errorMessage }]);
       }
     }
   }, [isRecording, sendAudioToBackend]); // Dependencies: isRecording state and the sendAudio function
@@ -175,7 +198,7 @@ const ChatPanel: React.FC = () => {
     }
 
     // Add user's message to the chat display immediately
-    const userMessage: Message = { role: 'user', content: trimmedInput };
+    const userMessage: Message = { id: uuidv4(), role: 'user', content: trimmedInput };
     setMessages(prevMessages => [...prevMessages, userMessage]);
 
     // Clear the input field
@@ -204,7 +227,7 @@ const ChatPanel: React.FC = () => {
         // Handle HTTP errors (e.g., 500 Internal Server Error)
         const errorData = await response.json().catch(() => ({ detail: 'Failed to parse error response.' }));
         console.error('API Error Response:', errorData);
-        setMessages(prevMessages => [...prevMessages, { role: 'error', content: `Error: ${errorData.detail || response.statusText}` }]);
+        setMessages(prevMessages => [...prevMessages, { id: uuidv4(), role: 'error', content: `Error: ${errorData.detail || response.statusText}` }]);
         return;
       }
 
@@ -213,18 +236,18 @@ const ChatPanel: React.FC = () => {
 
       // Add AI's response to the chat display
       if (data.reply) {
-        const assistantMessage: Message = { role: 'assistant', content: data.reply };
+        const assistantMessage: Message = { id: uuidv4(), role: 'assistant', content: data.reply };
         setMessages(prevMessages => [...prevMessages, assistantMessage]);
       } else {
          console.error('API response missing reply field:', data);
-         setMessages(prevMessages => [...prevMessages, { role: 'error', content: 'Error: Received an invalid response from the server.' }]);
+         setMessages(prevMessages => [...prevMessages, { id: uuidv4(), role: 'error', content: 'Error: Received an invalid response from the server.' }]);
       }
 
     } catch (error) {
       setIsLoading(false); // Ensure loading is false on network error
       console.error('Failed to send message:', error);
       // Add an error message to the chat display
-      setMessages(prevMessages => [...prevMessages, { role: 'error', content: 'Error: Could not connect to the backend service.' }]);
+      setMessages(prevMessages => [...prevMessages, { id: uuidv4(), role: 'error', content: 'Error: Could not connect to the backend service.' }]);
     }
   };
 
@@ -236,11 +259,11 @@ const ChatPanel: React.FC = () => {
   };
 
   // Function to render message bubbles based on role
-  const renderMessage = (msg: Message, index: number) => {
+  const renderMessage = (msg: Message) => { // Removed index parameter
     switch (msg.role) {
       case 'user':
         return (
-            <div key={index} className="mb-4 text-right">
+            <div key={msg.id} className="mb-4 text-right"> {/* Use msg.id as key */}
             <p className="bg-theme-highlight text-theme-primary p-3 rounded-lg border-2 border-theme-primary inline-block max-w-xs sm:max-w-md md:max-w-lg break-words">
               {msg.content}
             </p>
@@ -248,7 +271,7 @@ const ChatPanel: React.FC = () => {
         );
       case 'assistant':
         return (
-            <div key={index} className="mb-4">
+            <div key={msg.id} className="mb-4"> {/* Use msg.id as key */}
             <p className="bg-theme-background text-theme-primary p-3 rounded-lg border-2 border-theme-primary inline-block max-w-xs sm:max-w-md md:max-w-lg break-words">
               {msg.content}
             </p>
@@ -256,7 +279,7 @@ const ChatPanel: React.FC = () => {
         );
        case 'error':
         return (
-            <div key={index} className="mb-4">
+            <div key={msg.id} className="mb-4"> {/* Use msg.id as key */}
             <p className="bg-theme-accent text-theme-background p-3 rounded-lg border-2 border-theme-primary inline-block max-w-xs sm:max-w-md md:max-w-lg break-words">
               {msg.content}
             </p>
