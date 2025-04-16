@@ -214,12 +214,14 @@ class ChatService:
             audio_file = io.BytesIO(audio_bytes)
             # Provide a filename, which Whisper uses to infer format/type
             # The tuple format is (filename, file-like object)
+            audio_file.name = filename
             transcription = self.openai_client.audio.transcriptions.create(
                 model="whisper-1",
-                file=(filename, audio_file) # Pass as a tuple
+                file=audio_file,
+                response_format="text"
             )
-            logger.info(f"Transcription successful: '{transcription.text}'")
-            return transcription.text
+            logger.info(f"Transcription successful: '{transcription}'")
+            return transcription
         except openai.APIConnectionError as e:
             logger.error(f"OpenAI API request failed to connect during transcription: {e}")
             return "Error: Could not connect to the AI service for transcription."
@@ -230,7 +232,7 @@ class ChatService:
              logger.error(f"OpenAI API authentication failed during transcription: {e}. Check your API key.")
              return "Error: AI service authentication failed."
         except openai.APIStatusError as e:
-            logger.error(f"OpenAI API returned an API Error during transcription: {e.status_code} - {e.response}")
+            logger.error(f"OpenAI API returned an API Error during transcription: {e.status_code} - {e.message}")
             return f"Error: The AI service returned an error during transcription (Status: {e.status_code})."
         except Exception as e:
             logger.error(f"An unexpected error occurred during OpenAI transcription: {e}", exc_info=True)

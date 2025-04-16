@@ -68,7 +68,7 @@ const ChatPanel: React.FC = () => {
     formData.append('session_id', sessionId);
 
     try {
-      const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/chat/audio`;
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/audio`;
       const response = await fetch(apiUrl, {
         method: 'POST',
         body: formData, // Send FormData directly, fetch handles headers
