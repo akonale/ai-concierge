@@ -5,11 +5,24 @@ from typing import Dict, List, Any, Optional
 import logging
 import io # Add io
 
+import chromadb
 import openai # For logging information
+from sentence_transformers import SentenceTransformer # Import sentence transformer
 
 # Configure basic logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# --- Configuration for ChromaDB and Embeddings ---
+# Load ChromaDB connection details from environment variables
+CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost") # Default to localhost
+CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))    # Default to 8000
+# Name for the ChromaDB collection used in the loading script
+COLLECTION_NAME = "experiences"
+# Pre-trained model used for generating embeddings in the loading script
+EMBEDDING_MODEL_NAME = 'all-MiniLM-L6-v2'
+# Number of relevant documents to retrieve from ChromaDB
+NUM_RAG_RESULTS = 3
 
 # --- Placeholder for Session/History Management (In-Memory for POC) ---
 # Warning: This is NOT suitable for production. Use Redis or DB for persistence.
@@ -26,6 +39,8 @@ class ChatService:
         # e.g., self.vector_store = initialize_vector_store()
         # e.g., self.data_store = load_data()
         self.openai_client = self.initialize_openai_client()
+        self.chroma_client, self.chroma_collection = self.initialize_chroma_client()
+        self.embedding_model = self.initialize_embedding_model()
         logger.info("OpenAI client initialized successfully.")
 
         logger.info("ChatService initialized.")
@@ -79,33 +94,61 @@ class ChatService:
         # --- TODO: Implement history truncation logic for token limits ---
         # e.g., keep only the last N turns
 
-
     def _retrieve_rag_context(self, message: str) -> str:
         """
-        Placeholder for RAG retrieval.
-        Queries vector store and fetches relevant data.
+        Performs RAG retrieval using ChromaDB (via HTTP client).
+        Embeds the query message and queries the ChromaDB collection.
+        Formats the results into a context string for the LLM.
         """
+        if not self.embedding_model or not self.chroma_collection:
+            logger.error("RAG components (embedding model or Chroma collection) not initialized.")
+            return "Error: Could not perform context retrieval."
+
         logger.info(f"Performing RAG retrieval for message: '{message}'")
-        # --- TODO: Implement actual RAG logic ---
-        # 1. Embed the user message.
-        # 2. Query the vector store for relevant IDs.
-        # 3. Fetch full data for those IDs from self.experiences_data or primary store.
-        # 4. Format the retrieved data into a string context.
+        try:
+            # 1. Embed the user query
+            query_embedding = self.embedding_model.encode(message).tolist()
 
-        # Placeholder context based on simple keyword matching (very basic)
-        context_parts = []
-        if "relaxing" in message.lower() or "yoga" in message.lower():
-             context_parts.append(str(self.experiences_data[1])) # Yoga
-        if "canal" in message.lower() or "boat" in message.lower():
-             context_parts.append(str(self.experiences_data[0])) # Canal Cruise
-        if "cook" in message.lower() or "food" in message.lower():
-             context_parts.append(str(self.experiences_data[2])) # Cooking Class
-        
-        if not context_parts:
-            return "No specific context found."
-        
-        return "Context: \n" + "\n".join(context_parts)
+            # 2. Query ChromaDB
+            results = self.chroma_collection.query(
+                query_embeddings=[query_embedding],
+                n_results=NUM_RAG_RESULTS,
+                include=['metadatas', 'documents', 'distances']  # Include desired data
+            )
 
+            # 3. Process and Format Results
+            retrieved_metadatas = results.get('metadatas', [[]])[0]  # Get list of metadata dicts
+            # retrieved_documents = results.get('documents', [[]])[0] # Get list of document texts
+            # retrieved_distances = results.get('distances', [[]])[0] # Get list of distances (lower is better)
+
+            if not retrieved_metadatas:
+                logger.info("No relevant documents found in ChromaDB for the query.")
+                return "No specific context found in the knowledge base."
+
+            # Format the context string
+            context_parts = []
+            logger.info(f"Retrieved {len(retrieved_metadatas)} results from ChromaDB.")
+            for i, meta in enumerate(retrieved_metadatas):
+                # Customize this formatting based on what's most useful from your metadata
+                context_line = (
+                    f"[Result {i + 1}: "
+                    f"Name: {meta.get('experience_name', 'N/A')}, "
+                    f"Description: {meta.get('description', 'N/A')}, "
+                    # Add other relevant metadata fields loaded previously
+                    f"Price: {meta.get('price', 'N/A')}, "
+                    f"Type: {meta.get('type', 'N/A')}"
+                    # f"Distance: {retrieved_distances[i]:.4f}" # Optionally include distance
+                    f"]"
+                )
+                context_parts.append(context_line)
+
+            formatted_context = "Context from knowledge base:\n" + "\n".join(context_parts)
+            logger.info(f"Formatted RAG context:\n{formatted_context}")
+            return formatted_context
+
+        except Exception as e:
+            logger.error(f"Error during RAG retrieval: {e}", exc_info=True)
+            return "Error: Failed to retrieve context information."
 
     def _call_openai_api(self, message: str, history: List[Dict[str, str]], context: str) -> str:
         """
@@ -286,6 +329,48 @@ class ChatService:
 
         logger.info(f"Generated reply for session {session_id} from audio: '{ai_reply}' for question: '{transcribed_text}'")
         return transcribed_text, ai_reply
+
+    def initialize_embedding_model(self):
+        # --- Initialize Embedding Model ---
+        try:
+            logger.info(f"Loading sentence transformer model: {EMBEDDING_MODEL_NAME}...")
+            # You can specify cache_folder='./embedding_models' to control download location
+            embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+            logger.info("Sentence transformer model loaded successfully.")
+        except Exception as e:
+            logger.error(f"Failed to load sentence transformer model: {e}", exc_info=True)
+            # Decide how to handle failure - maybe service can't start?
+            raise RuntimeError(f"Could not load embedding model {EMBEDDING_MODEL_NAME}") from e
+        return embedding_model
+
+    def initialize_chroma_client(self):
+        # --- Initialize ChromaDB HTTP Client & Collection ---
+        try:
+            logger.info(f"Initializing ChromaDB HTTP client for host: {CHROMA_HOST}, port: {CHROMA_PORT}")
+            # Use HttpClient instead of PersistentClient
+            chroma_client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
+            # Optional: Ping the server to check connection early
+            chroma_client.heartbeat() # Throws exception if connection fails
+            logger.info("ChromaDB server connection successful.")
+
+            logger.info(f"Getting ChromaDB collection: {COLLECTION_NAME}")
+            # Check if collection exists before getting (optional but good practice)
+            # Note: get_collection throws exception if it doesn't exist.
+            # get_or_create_collection is safer if unsure if loading script ran.
+            chroma_collection = chroma_client.get_collection(name=COLLECTION_NAME)
+            logger.info(f"ChromaDB collection '{COLLECTION_NAME}' loaded successfully.")
+            # Verify collection has items (optional)
+            count = chroma_collection.count()
+            logger.info(f"Collection contains {count} items.")
+            if count == 0:
+                 logger.warning(f"ChromaDB collection '{COLLECTION_NAME}' is empty. Did the loading script run successfully against the Docker instance?")
+            return chroma_client, chroma_collection
+
+        except Exception as e:
+            logger.error(f"Failed to initialize ChromaDB HTTP client or get collection: {e}", exc_info=True)
+            # Decide how to handle failure
+            raise RuntimeError(f"Could not connect to or load ChromaDB collection at {CHROMA_HOST}:{CHROMA_PORT}") from e
+
 
 
 # --- Optional: Singleton pattern or dependency injection setup ---

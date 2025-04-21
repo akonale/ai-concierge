@@ -1,0 +1,78 @@
+# docker-compose.yml
+version: '3.8' # Specify docker-compose version
+
+volumes:
+  chroma_data: {} # Define a named volume for ChromaDB persistence
+  # node_modules: {} # Optional: Define volume to isolate node_modules
+
+services:
+  # Frontend Service (Next.js)
+  frontend:
+    build:
+      context: ./frontend # Path to the frontend directory
+      dockerfile: Dockerfile # Name of the Dockerfile
+    container_name: ai_concierge_frontend
+    ports:
+      - "3000:3000" # Map host port 3000 to container port 3000 (Next.js default)
+    environment:
+      # Point frontend API calls to the backend service within the Docker network
+      - NEXT_PUBLIC_API_BASE_URL=http://backend:8000
+      # Add other frontend env vars if needed
+    volumes:
+      # Mount local code for development hot-reloading
+      # Use consistent volume for node_modules if needed to avoid overwriting
+      - ./frontend:/app
+      - /app/node_modules # Prevent host node_modules from overwriting container's
+      - /app/.next # Prevent host .next from overwriting container's build artifacts
+    depends_on:
+      - backend # Optional: Wait for backend to start (doesn't guarantee readiness)
+    stdin_open: true # Keep stdin open for interactive terminal
+    tty: true        # Allocate a pseudo-TTY
+
+  # Backend Service (Python/FastAPI)
+  backend:
+    build:
+      context: ./backend # Path to the backend directory
+      dockerfile: Dockerfile # Name of the Dockerfile
+    container_name: ai_concierge_backend
+    ports:
+      - "8000:8000" # Map host port 8000 to container port 8000 (Uvicorn default)
+    env_file:
+      - ./backend/.env # Load environment variables from .env file (includes OPENAI_API_KEY)
+    environment:
+      # Override ChromaDB host/port to use the service name within Docker network
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000 # ChromaDB container internal port
+      # Add other backend env vars if needed
+    volumes:
+      # Mount local code for development hot-reloading (--reload in uvicorn)
+      - ./backend:/app
+    depends_on:
+      - chromadb # Ensure ChromaDB starts before the backend attempts to connect
+
+  # ChromaDB Service
+  chromadb:
+    image: chromadb/chroma:latest # Use the official ChromaDB image
+    container_name: ai_concierge_chromadb
+    environment:
+      # Optional: Configure ChromaDB settings if needed via env vars
+      # Refer to ChromaDB Docker documentation for available variables
+      # Example: Allowing reset might be useful in dev, disable in prod
+      - ALLOW_RESET=true
+      - IS_PERSISTENT=true # Ensure persistence is enabled
+    ports:
+      # Map a *different* host port (e.g., 8001) to ChromaDB's internal port 8000
+      # This allows direct access to ChromaDB from your host machine if needed for debugging
+      # The backend service connects internally via port 8000 using the service name 'chromadb'
+      - "8001:8000"
+    volumes:
+      # Mount the named volume to persist ChromaDB data
+      - chroma_data:/chroma/chroma # Default persistence path inside the container
+    # Command to ensure ChromaDB listens on all interfaces within the container
+    # Note: Recent Chroma images might handle this by default, but explicitly setting can be safer.
+    # command: uvicorn chromadb.app:app --reload --workers 1 --host 0.0.0.0 --port 8000 --log-config log_config.yml
+    # Simpler command often works:
+    # command: "--host 0.0.0.0 --port 8000" # Check Chroma docs for current best practice
+
+# Note: Networks are implicitly created by Docker Compose unless specified otherwise.
+# All services will be on a default bridge network allowing them to communicate via service names.

@@ -1,3 +1,5 @@
 backend/venv
 frontend/.next
 frontend/.node_modules
+chroma-data/
+.idea/
