@@ -20,7 +20,7 @@ services:
     repo: https://github.com/akonale/ai-concierge # Replace with your GitHub repo URL
     branch: master # Or the branch you want to deploy from
     rootDir: ./frontend # Path to the frontend code within the repo
-    dockerfilePath: ./frontend/Dockerfile # Path to the Dockerfile relative to rootDir
+    dockerfilePath: ./Dockerfile # Path to the Dockerfile relative to rootDir
     plan: starter # Choose an appropriate instance type (e.g., starter, standard)
     autoDeploy: true # Enable automatic deploys on pushes to the specified branch
     # Define environment variables needed by the frontend container at runtime
@@ -46,7 +46,7 @@ services:
     repo: https://github.com/akonale/ai-concierge # Replace with your GitHub repo URL
     branch: master
     rootDir: ./backend
-    dockerfilePath: ./backend/Dockerfile
+    dockerfilePath: ./Dockerfile
     plan: starter # Choose appropriate instance type
     autoDeploy: true
     # Define environment variables needed by the backend container
