@@ -77,7 +77,7 @@ services:
   # ChromaDB Service - Deployed as a Private Service
   - type: pserv # Private service (not directly accessible from the internet)
     name: chromadb # Name used for internal referencing
-    runtime: docker
+    # runtime: docker # Removed as 'image:' block is used
     # Deploy directly from Docker Hub image
     image:
       url: chromadb/chroma:latest # Use the official image
