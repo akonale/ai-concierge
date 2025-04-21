@@ -1,0 +1,98 @@
+# render.yaml - Render Infrastructure as Code file
+# Defines the services for the AI Concierge application.
+# Place this file in the root of your GitHub repository.
+
+# Optional: Define environment variable groups for secrets
+# You would typically create the group in the Render UI and set the values there.
+# Then, reference the group name in the service definitions below.
+# envVarGroups:
+#   - name: backend-secrets # Example group name
+#     envVars:
+#       - key: OPENAI_API_KEY
+#         # value: Set the actual value in the Render dashboard under Environment Groups
+#         generateValue: false # Set to true if Render should generate a value
+
+services:
+  # Frontend Service (Next.js) - Deployed as a Web Service
+  - type: web # Static sites or web servers
+    name: ai-concierge-frontend # Name used internally by Render
+    runtime: docker # Specify we are using a Dockerfile
+    repo: https://github.com/akonale/ai-concierge # Replace with your GitHub repo URL
+    branch: main # Or the branch you want to deploy from
+    rootDir: ./frontend # Path to the frontend code within the repo
+    dockerfilePath: ./frontend/Dockerfile # Path to the Dockerfile relative to rootDir
+    plan: starter # Choose an appropriate instance type (e.g., starter, standard)
+    autoDeploy: true # Enable automatic deploys on pushes to the specified branch
+    # Define environment variables needed by the frontend container at runtime
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE_URL
+        # Use Render's internal URL for the backend service
+        # The format is http://<backend-service-name>:<backend-internal-port>
+        # Render automatically injects <service-name>.internal for the host
+        # Note: Render injects PORT env var automatically based on service type
+        fromService:
+          type: web # Type of the service to get URL from
+          name: ai-concierge-backend # Name of the backend service defined below
+          envVarKey: RENDER_SERVICE_URL # Use Render's injected URL variable
+      - key: NODE_ENV # Set Node environment for Next.js
+        value: production
+    # Optional: Define health check path
+    healthCheckPath: /
+
+  # Backend Service (FastAPI) - Deployed as a Web Service
+  - type: web # Web servers / APIs
+    name: ai-concierge-backend # Name used internally and for the internal URL
+    runtime: docker
+    repo: https://github.com/akonale/ai-concierge # Replace with your GitHub repo URL
+    branch: main
+    rootDir: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: starter # Choose appropriate instance type
+    autoDeploy: true
+    # Define environment variables needed by the backend container
+    envVars:
+      # Point to the ChromaDB private service using Render's injected host/port
+      - key: CHROMA_HOST
+        fromService:
+          type: pserv # Type of the ChromaDB service
+          name: chromadb # Name of the ChromaDB service defined below
+          envVarKey: RENDER_SERVICE_HOSTNAME # Use Render's injected hostname
+      - key: CHROMA_PORT
+        fromService:
+          type: pserv
+          name: chromadb
+          envVarKey: RENDER_SERVICE_PORT # Use Render's injected port
+      - key: PORT # Inform the container which port Render expects it to listen on (matches Dockerfile EXPOSE)
+        value: 5000
+      # --- Secret Management ---
+      # Option 1: Reference an Environment Group (Recommended)
+      # - fromGroup: backend-secrets # Uncomment this if using envVarGroups defined above
+      # Option 2: Sync individual secrets from Render's Secret Manager
+      - key: OPENAI_API_KEY
+        sync: false # Set to false if you set the value directly in Render UI Secrets
+        # value: Set in Render UI Secrets for this service
+    # Define health check path (matches your /health route in FastAPI)
+    healthCheckPath: /health
+
+  # ChromaDB Service - Deployed as a Private Service
+  - type: pserv # Private service (not directly accessible from the internet)
+    name: chromadb # Name used for internal referencing
+    runtime: docker
+    # Deploy directly from Docker Hub image
+    image:
+      url: chromadb/chroma:latest # Use the official image
+    plan: starter # Choose appropriate instance type for a private service
+    autoDeploy: false # Typically false for databases unless image tag changes
+    # Define environment variables for the ChromaDB container
+    envVars:
+      - key: IS_PERSISTENT # Ensure ChromaDB runs in persistent mode
+        value: "true"
+      - key: ALLOW_RESET # Useful for development/testing, consider setting to false for prod
+        value: "true"
+      # Add other ChromaDB config env vars if needed
+    # Define a persistent disk for ChromaDB data
+    disks:
+      - name: chroma-data # Name of the disk resource
+        mountPath: /chroma/chroma # Path inside the container where data is stored
+        sizeGB: 1 # Size of the persistent disk (adjust as needed)
+
