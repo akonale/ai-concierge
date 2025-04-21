@@ -91,8 +91,7 @@ services:
         value: "true"
       # Add other ChromaDB config env vars if needed
     # Define a persistent disk for ChromaDB data
-    disks:
+    disk: # Renamed from 'disks' to 'disk'
       - name: chroma-data # Name of the disk resource
         mountPath: /chroma/chroma # Path inside the container where data is stored
         sizeGB: 1 # Size of the persistent disk (adjust as needed)
-
