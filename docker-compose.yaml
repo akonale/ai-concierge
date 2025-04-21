@@ -16,12 +16,12 @@ services:
       - "3000:3000" # Map host port 3000 to container port 3000 (Next.js default)
     environment:
       # Point frontend API calls to the backend service within the Docker network
-      - NEXT_PUBLIC_API_BASE_URL=http://backend:8000
+      - NEXT_PUBLIC_API_BASE_URL=http://backend:5000
       # Add other frontend env vars if needed
     volumes:
-      # Mount local code for development hot-reloading
+      # Mount local code for development hot-reloading - REMOVED for standalone build
       # Use consistent volume for node_modules if needed to avoid overwriting
-      - ./frontend:/app
+      # - ./frontend:/app # <-- REMOVED this line
       - /app/node_modules # Prevent host node_modules from overwriting container's
       - /app/.next # Prevent host .next from overwriting container's build artifacts
     depends_on:
@@ -36,7 +36,7 @@ services:
       dockerfile: Dockerfile # Name of the Dockerfile
     container_name: ai_concierge_backend
     ports:
-      - "8000:8000" # Map host port 8000 to container port 8000 (Uvicorn default)
+      - "5000:5000" # Map host port 5000 to container port 5000
     env_file:
       - ./backend/.env # Load environment variables from .env file (includes OPENAI_API_KEY)
     environment:
@@ -64,7 +64,7 @@ services:
       # Map a *different* host port (e.g., 8001) to ChromaDB's internal port 8000
       # This allows direct access to ChromaDB from your host machine if needed for debugging
       # The backend service connects internally via port 8000 using the service name 'chromadb'
-      - "8001:8000"
+      - "8000:8000"
     volumes:
       # Mount the named volume to persist ChromaDB data
       - chroma_data:/chroma/chroma # Default persistence path inside the container

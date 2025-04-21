@@ -357,7 +357,7 @@ class ChatService:
             # Check if collection exists before getting (optional but good practice)
             # Note: get_collection throws exception if it doesn't exist.
             # get_or_create_collection is safer if unsure if loading script ran.
-            chroma_collection = chroma_client.get_collection(name=COLLECTION_NAME)
+            chroma_collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
             logger.info(f"ChromaDB collection '{COLLECTION_NAME}' loaded successfully.")
             # Verify collection has items (optional)
             count = chroma_collection.count()
