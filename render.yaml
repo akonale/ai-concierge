@@ -51,15 +51,12 @@ services:
     autoDeploy: true
     # Define environment variables needed by the backend container
     envVars:
-      # Point to the ChromaDB private service using Render's injected host/port
+      # Point to the ChromaDB private service using Render's internal DNS name
       - key: CHROMA_HOST
-        fromService:
-          type: pserv # Type of the ChromaDB service
-          name: chromadb # Name of the ChromaDB service defined below
-          envVarKey: RENDER_SERVICE_HOSTNAME # Use Render's injected hostname
+        value: chromadb.internal # Use Render's internal DNS name directly
       - key: CHROMA_PORT
         fromService:
-          type: pserv
+          type: pserv # Type of the ChromaDB service
           name: chromadb
           envVarKey: RENDER_SERVICE_PORT # Use Render's injected port
       - key: PORT # Inform the container which port Render expects it to listen on (matches Dockerfile EXPOSE)
