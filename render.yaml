@@ -18,7 +18,7 @@ services:
     name: ai-concierge-frontend # Name used internally by Render
     runtime: docker # Specify we are using a Dockerfile
     repo: https://github.com/akonale/ai-concierge # Replace with your GitHub repo URL
-    branch: main # Or the branch you want to deploy from
+    branch: master # Or the branch you want to deploy from
     rootDir: ./frontend # Path to the frontend code within the repo
     dockerfilePath: ./frontend/Dockerfile # Path to the Dockerfile relative to rootDir
     plan: starter # Choose an appropriate instance type (e.g., starter, standard)
@@ -44,7 +44,7 @@ services:
     name: ai-concierge-backend # Name used internally and for the internal URL
     runtime: docker
     repo: https://github.com/akonale/ai-concierge # Replace with your GitHub repo URL
-    branch: main
+    branch: master
     rootDir: ./backend
     dockerfilePath: ./backend/Dockerfile
     plan: starter # Choose appropriate instance type
