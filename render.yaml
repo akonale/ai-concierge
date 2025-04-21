@@ -33,7 +33,7 @@ services:
         fromService:
           type: web # Type of the service to get URL from
           name: ai-concierge-backend # Name of the backend service defined below
-          envVarKey: RENDER_SERVICE_URL # Use Render's injected URL variable
+          property: hostport # Use Render's injected URL variable
       - key: NODE_ENV # Set Node environment for Next.js
         value: production
     # Optional: Define health check path
