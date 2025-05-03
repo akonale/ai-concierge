@@ -69,7 +69,7 @@ const ChatPanel: React.FC = () => {
     formData.append('session_id', sessionId);
 
     try {
-      const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/audio`;
+      const apiUrl = `http://${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/audio`;
       console.log("API Base URL (Audio):", process.env.NEXT_PUBLIC_API_BASE_URL); // Added log
       console.log("Constructed API URL (Audio):", apiUrl); // Added log
       const response = await fetch(apiUrl, {
@@ -210,7 +210,7 @@ const ChatPanel: React.FC = () => {
 
     try {
       // --- API Call to Backend ---
-      const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/chat`;
+      const apiUrl = `http://${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/chat`;
       console.log("API Base URL (Chat):", process.env.NEXT_PUBLIC_API_BASE_URL); // Added log
       console.log("Constructed API URL (Chat):", apiUrl); // Added log
       
@@ -297,7 +297,7 @@ const ChatPanel: React.FC = () => {
 
   return (
     // Main panel: White background, Black border
-    <main className="flex flex-col h-full bg-white border-4 border-black m-4">
+    <main className="flex flex-col h-full bg-red-50 border-4 border-black m-4">
       {/* Conversation History Area */}
       <div ref={chatHistoryRef} className="flex-grow p-4 overflow-y-auto border-b-4 border-black">
         {messages.map(renderMessage)}

@@ -1,18 +1,24 @@
 // frontend/src/app/page.tsx (Example using App Router)
+// frontend/src/app/page.tsx (Example using App Router)
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
 import ChatPanel from '@/components/ChatPanel';
+import ResultsCanvas from '@/components/ResultsCanvas'; // Import the new component
 
 export default function Home() {
   return (
-    <div className="flex flex-col h-screen bg-gray-200">
+    <div className="flex flex-col h-screen bg-white"> {/* Changed background to white for consistency */}
       <Navbar />
-      <div className="flex flex-grow overflow-hidden"> {/* Ensure inner flex container grows */}
-        <div className="w-1/5 flex-shrink-0"> {/* Fixed width sidebar */}
-          <Sidebar />
-        </div>
-        <div className="flex-grow"> {/* Main content area takes remaining space */}
+      <div className="flex flex-grow overflow-hidden"> {/* Main layout container */}
+        {/* Sidebar: Width is controlled internally by the component */}
+        <Sidebar />
+        {/* Chat Panel: Takes up the central flexible space */}
+        <div className="flex-grow">
           <ChatPanel />
+        </div>
+        {/* Results Canvas: Fixed width on the right */}
+        <div className="w-1/4 flex-shrink-0"> {/* Adjust width as needed (e.g., w-96) */}
+          <ResultsCanvas />
         </div>
       </div>
     </div>
