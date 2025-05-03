@@ -25,15 +25,6 @@ services:
     autoDeploy: true # Enable automatic deploys on pushes to the specified branch
     # Define environment variables needed by the frontend container at runtime
     envVars:
-      - key: NEXT_PUBLIC_API_BASE_URL
-        # Use Render's internal URL for the backend service
-        # The format is http://<backend-service-name>:<backend-internal-port>
-        # Render automatically injects <service-name>.internal for the host
-        # Note: Render injects PORT env var automatically based on service type
-        fromService:
-          type: web # Type of the service to get URL from
-          name: ai-concierge-backend # Name of the backend service defined below
-          property: hostport # Use Render's injected URL variable
       - key: NODE_ENV # Set Node environment for Next.js
         value: production
     # Optional: Define health check path
