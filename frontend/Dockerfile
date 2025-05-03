@@ -34,6 +34,9 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy the rest of the application code
 COPY . .
 
+# Explicitly copy package.json and lock file again for the build script check
+COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
+
 # Set environment variable for the build process using the build-time argument
 ENV NEXT_PUBLIC_API_BASE_URL=ai-concierge-backend:5000
 
