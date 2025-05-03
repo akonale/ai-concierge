@@ -34,6 +34,11 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy the rest of the application code
 COPY . .
 
+# Declare build-time argument for the API base URL
+ARG NEXT_PUBLIC_API_BASE_URL
+# Set environment variable for the build process using the build-time argument
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+
 # Set NEXT_TELEMETRY_DISABLED to 1 to disable telemetry during build
 ENV NEXT_TELEMETRY_DISABLED 1
 
