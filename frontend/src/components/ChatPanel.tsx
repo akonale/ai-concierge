@@ -70,6 +70,8 @@ const ChatPanel: React.FC = () => {
 
     try {
       const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/audio`;
+      console.log("API Base URL (Audio):", process.env.NEXT_PUBLIC_API_BASE_URL); // Added log
+      console.log("Constructed API URL (Audio):", apiUrl); // Added log
       const response = await fetch(apiUrl, {
         method: 'POST',
         body: formData, // Send FormData directly, fetch handles headers
@@ -209,7 +211,9 @@ const ChatPanel: React.FC = () => {
     try {
       // --- API Call to Backend ---
       const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/chat`;
-
+      console.log("API Base URL (Chat):", process.env.NEXT_PUBLIC_API_BASE_URL); // Added log
+      console.log("Constructed API URL (Chat):", apiUrl); // Added log
+      
       const response = await fetch(apiUrl, { // Replace with env variable later
         method: 'POST',
         headers: {
@@ -263,24 +267,24 @@ const ChatPanel: React.FC = () => {
     switch (msg.role) {
       case 'user':
         return (
-            <div key={msg.id} className="mb-4 text-right"> {/* Use msg.id as key */}
-            <p className="bg-theme-highlight text-theme-primary p-3 rounded-lg border-2 border-theme-primary inline-block max-w-xs sm:max-w-md md:max-w-lg break-words">
+            <div key={msg.id} className="mb-4 flex justify-end"> {/* Use msg.id as key, ensure right alignment */}
+            <p className="bg-yellow-300 text-black p-3 rounded-none border-2 border-black inline-block max-w-xs sm:max-w-md md:max-w-lg break-words shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"> {/* Neo-brutalist shadow */}
               {msg.content}
             </p>
           </div>
         );
       case 'assistant':
         return (
-            <div key={msg.id} className="mb-4"> {/* Use msg.id as key */}
-            <p className="bg-theme-background text-theme-primary p-3 rounded-lg border-2 border-theme-primary inline-block max-w-xs sm:max-w-md md:max-w-lg break-words">
+            <div key={msg.id} className="mb-4 flex justify-start"> {/* Use msg.id as key, ensure left alignment */}
+            <p className="bg-white text-black p-3 rounded-none border-2 border-black inline-block max-w-xs sm:max-w-md md:max-w-lg break-words shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"> {/* Neo-brutalist shadow */}
               {msg.content}
             </p>
           </div>
         );
        case 'error':
         return (
-            <div key={msg.id} className="mb-4"> {/* Use msg.id as key */}
-            <p className="bg-theme-accent text-theme-background p-3 rounded-lg border-2 border-theme-primary inline-block max-w-xs sm:max-w-md md:max-w-lg break-words">
+            <div key={msg.id} className="mb-4 flex justify-start"> {/* Use msg.id as key, ensure left alignment */}
+            <p className="bg-red-500 text-white p-3 rounded-none border-2 border-black inline-block max-w-xs sm:max-w-md md:max-w-lg break-words shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"> {/* Neo-brutalist shadow */}
               {msg.content}
             </p>
           </div>
@@ -292,15 +296,15 @@ const ChatPanel: React.FC = () => {
 
 
   return (
-    // Main panel: Background, Primary border
-    <main className="flex flex-col h-full bg-theme-background border-4 border-theme-primary m-4">
+    // Main panel: White background, Black border
+    <main className="flex flex-col h-full bg-white border-4 border-black m-4">
       {/* Conversation History Area */}
-      <div ref={chatHistoryRef} className="flex-grow p-4 overflow-y-auto border-b-4 border-theme-primary">
+      <div ref={chatHistoryRef} className="flex-grow p-4 overflow-y-auto border-b-4 border-black">
         {messages.map(renderMessage)}
-        {/* Loading indicator: Secondary background, Primary text */}
+        {/* Loading indicator: White background, Black border/text */}
         {isLoading && (
-           <div className="mb-4">
-             <p className="bg-theme-secondary p-3 rounded-lg border-2 border-theme-primary inline-block animate-pulse text-theme-primary">
+           <div className="mb-4 flex justify-start">
+             <p className="bg-white text-black p-3 rounded-none border-2 border-black inline-block animate-pulse">
                AI is thinking...
              </p>
            </div>
@@ -308,7 +312,7 @@ const ChatPanel: React.FC = () => {
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t-theme-accent"> {/* Use theme color for border */}
+      <div className="p-4 border-t-4 border-black"> {/* Black border */}
         <div className="flex space-x-2">
           <input
             type="text"
@@ -317,15 +321,15 @@ const ChatPanel: React.FC = () => {
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
             disabled={isLoading || isRecording} // Disable input while loading or recording
-             // Input: Background, Primary text/border
-            className="flex-grow p-3 border-4 border-theme-secondary focus:outline-none text-theme-secondary bg-theme-background disabled:bg-gray-200 disabled:cursor-not-allowed"
+             // Input: White background, Black text/border, no rounded corners
+            className="flex-grow p-3 border-4 border-black rounded-none focus:outline-none text-black bg-white disabled:bg-gray-200 disabled:cursor-not-allowed"
           />
           {/* Send Button */}
           <button
             onClick={handleSendMessage}
             disabled={isLoading || isRecording || !inputValue.trim()} // Disable send when loading, recording, or input is empty
-            // Button: Accent background, Primary text/border, Secondary hover
-            className="bg-theme-accent p-3 border-4 border-theme-secondary font-bold text-theme-secondary hover:bg-theme-secondary disabled:bg-gray-400 disabled:cursor-not-allowed"
+            // Button: Black background, White text, Black border, Gray hover, no rounded corners
+            className="bg-black p-3 border-4 border-black rounded-none font-bold text-white hover:bg-gray-800 disabled:bg-gray-400 disabled:text-gray-700 disabled:border-gray-500 disabled:cursor-not-allowed"
           >
             {isLoading && !isRecording ? '...' : 'Send'} {/* Show loading only if not recording */}
           </button>
@@ -334,12 +338,12 @@ const ChatPanel: React.FC = () => {
             onClick={handleMicClick}
             disabled={isLoading} // Disable mic only when actively sending/processing (text or audio)
             title={isRecording ? "Stop Recording" : "Start Recording"}
-            // Button: Similar style, maybe different color when recording
-            className={`p-3 border-4 border-theme-secondary font-bold text-theme-secondary hover:bg-theme-secondary disabled:bg-gray-400 disabled:cursor-not-allowed ${
-              isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-theme-accent' // Red background when recording
+            // Button: Black background/border, White text, Gray hover, Red background when recording
+            className={`p-3 border-4 border-black rounded-none font-bold text-white hover:bg-gray-800 disabled:bg-gray-400 disabled:text-gray-700 disabled:border-gray-500 disabled:cursor-not-allowed ${
+              isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-black' // Red background when recording
             }`}
           >
-            {/* Simple SVG Mic Icon */}
+            {/* Simple SVG Mic Icon - Ensure stroke is white for visibility on dark backgrounds */}
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
             </svg>
