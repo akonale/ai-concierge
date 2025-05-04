@@ -38,7 +38,7 @@ COPY . .
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
 
 # Set environment variable for the build process using the build-time argument
-ENV NEXT_PUBLIC_API_BASE_URL=ai-concierge-backend:5000
+ENV NEXT_PUBLIC_API_BASE_URL=ai-concierge-frontend.onrender.com
 
 # Set NEXT_TELEMETRY_DISABLED to 1 to disable telemetry during build
 ENV NEXT_TELEMETRY_DISABLED 1
