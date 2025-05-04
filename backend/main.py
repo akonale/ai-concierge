@@ -37,7 +37,7 @@ origins = [
     "http://localhost:3000", # Default Next.js port (if used)
     "http://localhost:3001", # The origin reported in your error message
     # Add other origins as needed (e.g., your deployed frontend URL)
-    # "https://your-deployed-frontend.com",
+    "https://ai-concierge-frontend.onrender.com",
 ]
 
 app.add_middleware(
