@@ -12,7 +12,7 @@ const Sidebar: React.FC = () => {
 
   return (
     // Main container: Adjust width based on isOpen, add transition, set background to black
-    <div className={`h-full bg-black border-r-4 border-black transition-all duration-300 ease-in-out ${isOpen ? 'w-64' : 'w-16'}`}>
+    <div className={`h-full bg-violet-500 border-r-4 border-black transition-all duration-300 ease-in-out ${isOpen ? 'w-64' : 'w-16'}`}>
       {/* Toggle Button */}
       <div className="p-4 flex justify-end">
          {/* Keep button white for contrast */}

@@ -26,7 +26,7 @@ const PlaceholderCard: React.FC = () => {
 const ResultsCanvas: React.FC = () => {
   return (
     // Canvas container: Light blue background, black left border, padding, scrollable
-    <aside className="h-full bg-blue-200 border-l-4 border-black p-4 overflow-y-auto">
+    <aside className="h-full bg-green-100 border-l-4 border-black p-4 overflow-y-auto">
       <h2 className="text-xl font-bold mb-4 text-black">Results</h2>
       {/* Placeholder Cards */}
       <PlaceholderCard />

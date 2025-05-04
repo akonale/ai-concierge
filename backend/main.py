@@ -1,11 +1,19 @@
 # backend/main.py
 
+import logging
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware # Import CORSMiddleware
 from dotenv import load_dotenv # Import load_dotenv
 import os # Import os to access environment variables
 import uvicorn
+from contextlib import asynccontextmanager # For lifespan events
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from backend.app.services.sync_service import get_sync_service # Import scheduler
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # --- Environment Variable Loading ---
 # Load variables from .env file into environment
@@ -15,6 +23,46 @@ load_dotenv()
 # openai_api_key = os.getenv("OPENAI_API_KEY")
 # if not openai_api_key:
 #    print("Warning: OPENAI_API_KEY environment variable not set.")
+
+
+# --- Scheduler Setup ---
+scheduler = AsyncIOScheduler()
+
+# --- Lifespan Management (for starting/stopping scheduler) ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    logger.info("Application startup...")
+    try:
+        # Ensure services (especially sync) are ready before scheduling
+        sync_service = get_sync_service() # This will raise HTTPException if init failed
+        logger.info("Sync service initialized successfully.")
+
+        # Add the sync job to the scheduler
+        # Example: Run every hour (adjust interval as needed)
+        scheduler.add_job(
+            sync_service.run_full_airtable_chroma_sync, # The function to run
+            'interval',                                # Trigger type
+            hours=1,                                   # Interval
+            id='airtable_sync_job',                    # Unique ID for the job
+            replace_existing=True                      # Replace job if it already exists on restart
+        )
+        # Start the scheduler
+        scheduler.start()
+        logger.info(f"Scheduler started with job '{scheduler.get_job('airtable_sync_job').id}' running every 1 hour(s).")
+    except Exception as e:
+         # Log critical failure if scheduler or service init fails
+         logger.critical(f"Failed to initialize services or start scheduler: {e}", exc_info=True)
+         # Depending on requirements, you might want the app to stop here
+         # For now, it will continue but scheduling won't work if setup failed
+    yield
+    # Shutdown logic
+    logger.info("Application shutdown...")
+    if scheduler.running:
+        scheduler.shutdown()
+        logger.info("Scheduler shut down.")
+    else:
+        logger.info("Scheduler was not running.")
 
 
 # --- Import API Routers ---
