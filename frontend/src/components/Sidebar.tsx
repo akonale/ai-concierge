@@ -11,8 +11,8 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    // Main container: Adjust width based on isOpen, add transition, set background to gray-200
-    <div className={`h-full bg-rose-300 border-r-4 border-black transition-all duration-300 ease-in-out ${isOpen ? 'w-64' : 'w-16'}`}>
+    // Main container: Adjust width based on isOpen, add transition, set background to black
+    <div className={`h-full bg-black border-r-4 border-black transition-all duration-300 ease-in-out ${isOpen ? 'w-64' : 'w-16'}`}>
       {/* Toggle Button */}
       <div className="p-4 flex justify-end">
          {/* Keep button white for contrast */}
@@ -38,9 +38,9 @@ const Sidebar: React.FC = () => {
       <div className={`overflow-hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
         {isOpen && ( // Render content only when open to avoid layout shifts or use visibility/opacity
           <div className="p-4">
-            <h2 className="text-xl font-bold mb-4 text-black">Options</h2>
+            <h2 className="text-xl font-bold mb-4 text-white">Options</h2> {/* Changed text to white */}
             <ul className="space-y-2">
-              {/* List items with neo-brutalistic style */}
+              {/* List items with neo-brutalistic style - Kept original styling */}
               <li className="border-2 bg-white border-black p-2 text-black hover:bg-yellow-300 cursor-pointer font-medium shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]">Experiences</li>
               <li className="border-2 bg-white border-black p-2 text-black hover:bg-yellow-300 cursor-pointer font-medium shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]">Activities</li>
             </ul>
