@@ -1,6 +1,7 @@
 # backend/app/services/sync_service.py
 
 import logging
+from typing import Set
 from .airtable_service import AirtableService, get_airtable_service # Import Airtable service
 # Need access to ChromaDB collection and embedding model
 # Option 1: Inject ChatService (simpler for POC if ChatService holds them)
@@ -87,6 +88,107 @@ class SyncService:
                  metadata[key] = str(value)
 
         return metadata
+
+    async def run_full_airtable_chroma_sync(self):
+        """
+        Performs a full synchronization between Airtable and ChromaDB.
+        Fetches all records, identifies changes, and updates ChromaDB.
+        """
+        logger.info("--- Starting Full Airtable -> ChromaDB Sync ---")
+        if not self.embedding_model or not self.chroma_collection or not self.airtable_service:
+            logger.error("SyncService components not initialized. Aborting sync.")
+            return
+
+        try:
+            # 1. Get all current Record IDs from Airtable (consider filtering for 'Active' status)
+            # Example filter: filter_formula="{Status}='Active'" (adjust field name)
+            airtable_ids: Set[str] = set(self.airtable_service.get_all_record_ids())
+            logger.info(f"Found {len(airtable_ids)} records in Airtable.")
+            if not airtable_ids:
+                logger.warning("No records found in Airtable table. Check configuration or table content.")
+                # Decide if you want to wipe ChromaDB or just log
+                # self.chroma_collection.delete(where={}) # Example: Delete all if Airtable is empty
+                # return
+
+            # 2. Get all current IDs from ChromaDB
+            chroma_results = self.chroma_collection.get(include=[]) # Only need IDs
+            chroma_ids: Set[str] = set(chroma_results.get('ids', []))
+            logger.info(f"Found {len(chroma_ids)} records in ChromaDB collection '{COLLECTION_NAME}'.")
+
+            # 3. Identify Deletions (in ChromaDB but not in Airtable)
+            ids_to_delete = list(chroma_ids - airtable_ids)
+            if ids_to_delete:
+                logger.info(f"Identified {len(ids_to_delete)} records to delete from ChromaDB.")
+                try:
+                    self.chroma_collection.delete(ids=ids_to_delete)
+                    logger.info(f"Successfully deleted {len(ids_to_delete)} records from ChromaDB.")
+                except Exception as e:
+                    logger.error(f"Failed to delete records from ChromaDB: {e}", exc_info=True)
+            else:
+                logger.info("No records identified for deletion from ChromaDB.")
+
+            # 4. Identify Additions/Updates (all records currently in Airtable)
+            # We will fetch all and upsert, letting ChromaDB handle add vs update.
+            # Fetch full records from Airtable (consider filtering for active again)
+            # Fetching all can be slow for large tables - consider fetching only needed fields
+            # airtable_records = self.airtable_service.get_all_records() # Fetch all fields for now
+            # logger.info(f"Processing {len(airtable_records)} records from Airtable for upsert...")
+
+            upsert_ids = []
+            upsert_embeddings = []
+            upsert_metadatas = []
+            upsert_documents = []
+
+            # --- SIMPLER (but less efficient) approach for now: Iterate IDs and fetch ---
+            # A more efficient approach would modify get_all_records to return IDs + fields
+            logger.info(f"Processing records for upsert (fetching one by one)...")
+            processed_count = 0
+            for record_id in airtable_ids:
+                 record_fields = self.airtable_service.get_record(record_id)
+                 if not record_fields:
+                     logger.warning(f"Could not fetch details for Airtable ID {record_id} during upsert loop. Skipping.")
+                     continue
+
+                 # Prepare text, embedding, metadata
+                 # Adjust field names based on your actual Airtable base
+                 text_to_embed = f"{record_fields.get('Experience Name', '')} - {record_fields.get('Description', '')}"
+                 if not text_to_embed or text_to_embed == " - ":
+                     logger.warning(f"Record '{record_id}' has empty name/description. Skipping embedding.")
+                     continue
+
+                 try:
+                     embedding = self.embedding_model.encode(text_to_embed).tolist()
+                     metadata = self._prepare_chroma_metadata(record_fields) # Use helper method
+
+                     upsert_ids.append(record_id)
+                     upsert_embeddings.append(embedding)
+                     upsert_metadatas.append(metadata)
+                     upsert_documents.append(text_to_embed) # Store text used for embedding
+                     processed_count += 1
+
+                 except Exception as e:
+                     logger.error(f"Failed to process record '{record_id}' for upsert: {e}", exc_info=True)
+
+            # 5. Perform Batch Upsert
+            if upsert_ids:
+                logger.info(f"Upserting {len(upsert_ids)} records into ChromaDB...")
+                try:
+                    self.chroma_collection.upsert(
+                        ids=upsert_ids,
+                        embeddings=upsert_embeddings,
+                        metadatas=upsert_metadatas,
+                        documents=upsert_documents
+                    )
+                    logger.info("Successfully upserted records into ChromaDB.")
+                except Exception as e:
+                    logger.error(f"Failed to upsert batch into ChromaDB: {e}", exc_info=True)
+            else:
+                logger.info("No valid records to upsert into ChromaDB.")
+
+        except Exception as e:
+            logger.error(f"An error occurred during the full sync process: {e}", exc_info=True)
+
+        logger.info("--- Full Airtable -> ChromaDB Sync Finished ---")
 
     async def sync_record_to_chroma(self, record_id: str):
         """

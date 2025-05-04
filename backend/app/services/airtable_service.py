@@ -21,9 +21,6 @@ class AirtableService:
         self.api_key = os.getenv("AIRTABLE_API_KEY")
         self.base_id = os.getenv("AIRTABLE_BASE_ID")
         self.experiences_table_id = os.getenv("AIRTABLE_EXPERIENCES_TABLE_ID")
-        print(self.api_key)
-        print(self.base_id)
-        print(self.experiences_table_id)
         if not all([self.api_key, self.base_id, self.experiences_table_id]):
             logger.error("Airtable environment variables not fully configured (API Key/PAT, Base ID, Table ID).")
             raise ValueError("Airtable configuration missing in environment variables.")

@@ -9,7 +9,6 @@ import os # Import os to access environment variables
 import uvicorn
 from contextlib import asynccontextmanager # For lifespan events
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from backend.app.services.sync_service import get_sync_service # Import scheduler
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,6 +23,7 @@ load_dotenv()
 # if not openai_api_key:
 #    print("Warning: OPENAI_API_KEY environment variable not set.")
 
+from app.services.sync_service import get_sync_service # Import scheduler
 
 # --- Scheduler Setup ---
 scheduler = AsyncIOScheduler()

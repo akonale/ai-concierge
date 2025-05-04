@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'; // Added useCallback
 import { v4 as uuidv4 } from 'uuid'; // Import uuid to generate session IDs
+import ReactMarkdown from 'react-markdown'; // Import ReactMarkdown
 
 // Define the structure for a message object
 interface Message {
@@ -69,7 +70,7 @@ const ChatPanel: React.FC = () => {
     formData.append('session_id', sessionId);
 
     try {
-      const apiUrl = `https://${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/audio`;
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/audio`;
       console.log("API Base URL (Audio):", process.env.NEXT_PUBLIC_API_BASE_URL); // Added log
       console.log("Constructed API URL (Audio):", apiUrl); // Added log
       const response = await fetch(apiUrl, {
@@ -210,7 +211,7 @@ const ChatPanel: React.FC = () => {
 
     try {
       // --- API Call to Backend ---
-      const apiUrl = `https://${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/chat`;
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/chat`;
       console.log("API Base URL (Chat):", process.env.NEXT_PUBLIC_API_BASE_URL); // Added log
       console.log("Constructed API URL (Chat):", apiUrl); // Added log
       
@@ -276,9 +277,13 @@ const ChatPanel: React.FC = () => {
       case 'assistant':
         return (
             <div key={msg.id} className="mb-4 flex justify-start"> {/* Use msg.id as key, ensure left alignment */}
-            <p className="bg-white text-black p-3 rounded-none border-2 border-black inline-block max-w-xs sm:max-w-md md:max-w-lg break-words shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"> {/* Neo-brutalist shadow */}
-              {msg.content}
-            </p>
+            {/* Apply prose styles to the container div */}
+            <div className="bg-white text-black p-3 rounded-none border-2 border-black inline-block max-w-xs sm:max-w-md md:max-w-lg break-words shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] prose prose-sm max-w-none">
+              {/* Render assistant content using ReactMarkdown */}
+              <ReactMarkdown>
+                {msg.content}
+              </ReactMarkdown>
+            </div>
           </div>
         );
        case 'error':
