@@ -69,7 +69,7 @@ const ChatPanel: React.FC = () => {
     formData.append('session_id', sessionId);
 
     try {
-      const apiUrl = `http://${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/audio`;
+      const apiUrl = `https://${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/audio`;
       console.log("API Base URL (Audio):", process.env.NEXT_PUBLIC_API_BASE_URL); // Added log
       console.log("Constructed API URL (Audio):", apiUrl); // Added log
       const response = await fetch(apiUrl, {
@@ -210,7 +210,7 @@ const ChatPanel: React.FC = () => {
 
     try {
       // --- API Call to Backend ---
-      const apiUrl = `http://${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/chat`;
+      const apiUrl = `https://${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/chat`;
       console.log("API Base URL (Chat):", process.env.NEXT_PUBLIC_API_BASE_URL); // Added log
       console.log("Constructed API URL (Chat):", apiUrl); // Added log
       
