@@ -21,7 +21,7 @@ services:
     branch: master # Or the branch you want to deploy from
     rootDir: ./frontend # Path to the frontend code within the repo
     dockerfilePath: ./Dockerfile # Path to the Dockerfile relative to rootDir
-    plan: free # Choose an appropriate instance type (e.g., starter, standard)
+    plan: starter # Choose an appropriate instance type (e.g., starter, standard)
     autoDeploy: true # Enable automatic deploys on pushes to the specified branch
     # Define environment variables needed by the frontend container at runtime
     envVars:
@@ -38,7 +38,7 @@ services:
     branch: master
     rootDir: ./backend
     dockerfilePath: ./Dockerfile
-    plan: free # Choose appropriate instance type
+    plan: starter # Choose appropriate instance type
     autoDeploy: true
     # Define environment variables needed by the backend container
     envVars:
@@ -72,7 +72,7 @@ services:
     # Deploy directly from Docker Hub image
     image:
       url: chromadb/chroma:latest # Use the official image
-    plan: free # Choose appropriate instance type for a private service
+    plan: starter # Choose appropriate instance type for a private service
     autoDeploy: false # Typically false for databases unless image tag changes
     # Define environment variables for the ChromaDB container
     envVars:
