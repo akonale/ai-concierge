@@ -1,7 +1,7 @@
 # backend/app/api/chat.py
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from ..models import ChatRequest, ChatResponse # Use relative import from models.py
+from ..models.models import ChatRequest, ChatResponse # Use relative import from models.py
 from ..services.chat_service import ChatService, get_chat_service # Import service and dependency getter
 import logging
 

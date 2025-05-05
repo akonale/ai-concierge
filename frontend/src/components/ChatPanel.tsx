@@ -1,18 +1,26 @@
 // frontend/src/components/ChatPanel.tsx
 'use client'; // Add this directive for React hooks (useState, useEffect)
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'; // Added useCallback
-import { v4 as uuidv4 } from 'uuid'; // Import uuid to generate session IDs
-import ReactMarkdown from 'react-markdown'; // Import ReactMarkdown
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import ReactMarkdown from 'react-markdown';
+import { ExperienceCardData } from '@/types'; // Import the type
 
 // Define the structure for a message object
 interface Message {
   id: string; // Unique ID for each message
   role: 'user' | 'assistant' | 'system' | 'error'; // Added 'system' and 'error' roles
   content: string;
+  // Add suggested_experiences to the assistant message type if needed,
+  // but for now we'll handle it separately via props.
 }
 
-const ChatPanel: React.FC = () => {
+// Define props for the component, including the callback
+interface ChatPanelProps {
+  onNewSuggestions: (suggestions: ExperienceCardData[] | null) => void;
+}
+
+const ChatPanel: React.FC<ChatPanelProps> = ({ onNewSuggestions }) => {
   // State for the list of messages in the conversation
   const [messages, setMessages] = useState<Message[]>([
     // Initial welcome message
@@ -90,6 +98,10 @@ const ChatPanel: React.FC = () => {
       const data = await response.json();
       // Log the entire received data object immediately after parsing JSON
       console.log("Received data from /api/v1/audio:", JSON.stringify(data, null, 2));
+
+      // Update suggestions via the callback prop
+      onNewSuggestions(data.suggested_experiences || null);
+
       const newMessages: Message[] = [];
 
       // Add transcribed user message if it exists as a non-empty string
@@ -239,18 +251,25 @@ const ChatPanel: React.FC = () => {
       // Parse the JSON response from the backend
       const data = await response.json();
 
+      // Update suggestions via the callback prop
+      onNewSuggestions(data.suggested_experiences || null);
+
       // Add AI's response to the chat display
       if (data.reply) {
         const assistantMessage: Message = { id: uuidv4(), role: 'assistant', content: data.reply };
         setMessages(prevMessages => [...prevMessages, assistantMessage]);
       } else {
          console.error('API response missing reply field:', data);
+         // Clear suggestions if the response is invalid
+         onNewSuggestions(null);
          setMessages(prevMessages => [...prevMessages, { id: uuidv4(), role: 'error', content: 'Error: Received an invalid response from the server.' }]);
       }
 
     } catch (error) {
       setIsLoading(false); // Ensure loading is false on network error
       console.error('Failed to send message:', error);
+      // Clear suggestions on network error
+      onNewSuggestions(null);
       // Add an error message to the chat display
       setMessages(prevMessages => [...prevMessages, { id: uuidv4(), role: 'error', content: 'Error: Could not connect to the backend service.' }]);
     }

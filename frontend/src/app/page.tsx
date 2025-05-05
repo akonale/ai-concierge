@@ -1,11 +1,17 @@
 // frontend/src/app/page.tsx (Example using App Router)
-// frontend/src/app/page.tsx (Example using App Router)
+'use client'; // Required for useState hook
+
+import React, { useState } from 'react'; // Import useState
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
 import ChatPanel from '@/components/ChatPanel';
 import ResultsCanvas from '@/components/ResultsCanvas'; // Import the new component
+import { ExperienceCardData } from '@/types'; // Import the type
 
 export default function Home() {
+  // State to hold the suggested experiences
+  const [suggestions, setSuggestions] = useState<ExperienceCardData[] | null>(null);
+
   return (
     <div className="flex flex-col h-screen bg-white"> {/* Changed background to white for consistency */}
       <Navbar />
@@ -14,11 +20,13 @@ export default function Home() {
         <Sidebar />
         {/* Chat Panel: Takes up the central flexible space */}
         <div className="flex-grow">
-          <ChatPanel />
+          {/* Pass the setter function to ChatPanel */}
+          <ChatPanel onNewSuggestions={setSuggestions} />
         </div>
         {/* Results Canvas: Fixed width on the right */}
         <div className="w-1/4 flex-shrink-0"> {/* Adjust width as needed (e.g., w-96) */}
-          <ResultsCanvas />
+          {/* Pass the suggestions state to ResultsCanvas */}
+          <ResultsCanvas suggestedExperiences={suggestions} />
         </div>
       </div>
     </div>
