@@ -15,3 +15,7 @@ export interface ExperienceCardData {
   url?: string | null;
   // Add other fields if they exist in the backend model and are needed
 }
+
+export interface DefaultExperiences {
+    default_experiences: ExperienceCardData[]
+}

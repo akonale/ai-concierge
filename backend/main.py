@@ -71,6 +71,7 @@ async def lifespan(app: FastAPI):
 from app.api import chat as chat_api # Import the chat router
 # Assuming your admin router is in backend/app/api/admin.py
 from app.api import admin as admin_api # Import the admin router
+from app.api import experiences as experiences_api # Import experiences router
 
 # Create the FastAPI application instance
 app = FastAPI(
@@ -105,6 +106,7 @@ app.add_middleware(
 app.include_router(chat_api.router, prefix="/api/v1", tags=["Chat"])
 # Include the admin router
 app.include_router(admin_api.router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(experiences_api.router, prefix="/api/v1/experiences", tags=["Experiences"])
 # Add other routers here later (e.g., for data management)
 
 

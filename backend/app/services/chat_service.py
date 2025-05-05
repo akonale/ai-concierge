@@ -9,6 +9,8 @@ import chromadb
 from fastapi import HTTPException
 import openai
 
+from ..utils.mapping import map_airtable_to_card_data
+
 from ..models.models import ExperienceCardData # For logging information
 from .airtable_service import AirtableService,airtable_service_instance
 from sentence_transformers import SentenceTransformer # Import sentence transformer
@@ -240,50 +242,6 @@ class ChatService:
             logger.error(f"An unexpected error occurred during OpenAI API call: {e}", exc_info=True)
             return "Error: An unexpected error occurred while contacting the AI service."
 
-    def _map_airtable_to_card_data(self, airtable_record: Dict[str, Any]) -> Optional[ExperienceCardData]:
-        """
-        Maps fields from a retrieved Airtable record (including its ID)
-        to the ExperienceCardData Pydantic model.
-        Handles potential missing fields and type conversions.
-
-        Args:
-            airtable_record: A dictionary containing the 'id' (Airtable Record ID)
-                             and the 'fields' dictionary fetched from Airtable.
-                             Example: {'id': 'recXXX', 'Experience Name': 'Yoga', ...}
-
-        Returns:
-            An ExperienceCardData object if mapping is successful, otherwise None.
-        """
-        try:
-            # Extract image URL (example assumes 'Attachments' field containing a list of objects)
-            # Adjust 'Attachments' based on your actual Airtable field name for images
-            image_url = None
-            attachments = airtable_record.get('Attachments')
-            if isinstance(attachments, list) and len(attachments) > 0:
-                # Get URL from the first attachment, assuming it has a 'url' key
-                # You might need more complex logic if you have multiple images or different structures
-                image_url = attachments[0].get('url')
-
-            # Create the card data object using field names from your Airtable base
-            # Use .get() with defaults to handle potentially missing fields gracefully
-            card_data = ExperienceCardData(
-                id=airtable_record.get('id', 'missing_id'), # Use the ID passed in the dictionary key
-                name=airtable_record.get('Experience Name', 'N/A'), # Adjust field name as per your Airtable
-                description=airtable_record.get('Description'), # Optional field
-                image_url=image_url, # Use the extracted URL
-                price=str(airtable_record.get('Price', '')), # Ensure string, adjust field name
-                duration=str(airtable_record.get('Duration', '')), # Ensure string, adjust field name
-                type=airtable_record.get('Type', [])[0], # Adjust field name
-                url=airtable_record.get('URL') # Adjust field name for details/booking link
-                # Map other fields from your ExperienceCardData model here
-                # e.g., location=airtable_record.get('Location')
-            )
-            return card_data
-        except Exception as e:
-            # Log error if mapping fails for a specific record
-            logger.error(f"Error mapping Airtable record {airtable_record.get('id')} to Card Data: {e}", exc_info=True)
-            return None # Return None if mapping fails
-
 
     async def process_chat_message(self, session_id: str, user_message: str) -> str:
         """
@@ -311,7 +269,7 @@ class ChatService:
                 if airtable_records and not ai_text_reply.startswith("Error:"):
                     suggestions = []
                     for record in airtable_records:
-                        card_data = self._map_airtable_to_card_data(record)
+                        card_data = map_airtable_to_card_data(record)
                         if card_data: # Only add if mapping was successful
                             suggestions.append(card_data)
 

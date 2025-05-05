@@ -56,24 +56,34 @@ const ExperienceCard: React.FC<ExperienceCardProps> = ({ experience }) => {
 // --- Updated ResultsCanvas Component ---
 interface ResultsCanvasProps {
   suggestedExperiences: ExperienceCardData[] | null;
+  isLoading: boolean; // Add isLoading prop
 }
 
-const ResultsCanvas: React.FC<ResultsCanvasProps> = ({ suggestedExperiences }) => {
-  // Get top 5 suggestions
-  const topSuggestions = suggestedExperiences ? suggestedExperiences.slice(0, 5) : [];
+const ResultsCanvas: React.FC<ResultsCanvasProps> = ({ suggestedExperiences, isLoading }) => {
+  // Get top 5 suggestions (only if not loading and suggestions is an array)
+  const topSuggestions = !isLoading && Array.isArray(suggestedExperiences)
+    ? suggestedExperiences.slice(0, 5)
+    : [];
 
   return (
     // Canvas container: Light green background, black left border, padding, scrollable
     <aside className="h-full bg-green-100 border-l-4 border-black p-4 overflow-y-auto">
       <h2 className="text-xl font-bold mb-4 text-black">Suggestions</h2> {/* Changed title */}
 
-      {/* Render suggestions or a placeholder message */}
-      {topSuggestions.length > 0 ? (
+      {/* Conditional Rendering based on loading state */}
+      {isLoading ? (
+        // Loading Indicator
+        <div className="flex justify-center items-center h-full">
+           <p className="text-black italic animate-pulse">Loading suggestions...</p>
+        </div>
+      ) : topSuggestions.length > 0 ? (
+        // Render Suggestions
         topSuggestions.map((exp) => (
           <ExperienceCard key={exp.id} experience={exp} />
         ))
       ) : (
-        <p className="text-black italic">No specific suggestions found based on the current conversation.</p>
+        // No Suggestions Message (after loading is complete)
+        <p className="text-black italic">No specific suggestions found.</p>
       )}
     </aside>
   );

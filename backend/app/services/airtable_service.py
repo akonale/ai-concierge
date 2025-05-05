@@ -44,7 +44,7 @@ class AirtableService:
             logger.error(f"Error fetching record '{record_id}' from Airtable: {e}", exc_info=True)
             return None
 
-    def get_all_records(self, fields: List[str] = None, filter_formula: str = None) -> List[dict]:
+    def get_all_records(self, fields: List[str] = None, filter_formula: str = None, max_records: int = 5) -> List[dict]:
         """
         Fetches all records from the Experiences table, optionally filtering
         and selecting specific fields.
@@ -60,7 +60,7 @@ class AirtableService:
         try:
             logger.info(f"Fetching all records from Airtable table '{self.experiences_table_id}'...")
             # Use all() which handles pagination automatically
-            all_records_raw = self.experiences_table.all(fields=fields, formula=filter_formula)
+            all_records_raw = self.experiences_table.all(formula=filter_formula, max_records=max_records)
             # Extract just the 'fields' dictionary from each raw record
             all_records_data = [record.get('fields', {}) for record in all_records_raw]
             logger.info(f"Successfully fetched {len(all_records_data)} records.")
