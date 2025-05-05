@@ -69,6 +69,8 @@ async def lifespan(app: FastAPI):
 # Make sure the path is correct based on your structure
 # Assuming your chat router is in backend/app/api/chat.py
 from app.api import chat as chat_api # Import the chat router
+# Assuming your admin router is in backend/app/api/admin.py
+from app.api import admin as admin_api # Import the admin router
 
 # Create the FastAPI application instance
 app = FastAPI(
@@ -101,7 +103,9 @@ app.add_middleware(
 # Include the chat router with a prefix
 # All routes defined in chat_api.router will now be accessible under /api/v1
 app.include_router(chat_api.router, prefix="/api/v1", tags=["Chat"])
-# Add other routers here later (e.g., for admin, data management)
+# Include the admin router
+app.include_router(admin_api.router, prefix="/api/v1/admin", tags=["Admin"])
+# Add other routers here later (e.g., for data management)
 
 
 # Define a simple root endpoint for health checks or basic info
