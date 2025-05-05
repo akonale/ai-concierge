@@ -321,7 +321,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewSuggestions }) => {
 
   return (
     // Main panel: White background, Black border
-    <main className="flex flex-col h-full bg-amber-300 border-4 border-black m-4">
+    <main className="flex flex-col h-full bg-amber-200 border-4 border-black m-4">
       {/* Conversation History Area */}
       <div ref={chatHistoryRef} className="flex-grow p-4 overflow-y-auto border-b-4 border-black">
         {messages.map(renderMessage)}
