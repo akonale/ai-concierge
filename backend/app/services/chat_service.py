@@ -1,13 +1,18 @@
 # backend/app/services/chat_service.py
 
 import os
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 import logging
 import io # Add io
 
 import chromadb
-import openai # For logging information
+from fastapi import HTTPException
+import openai
+
+from ..models.models import ExperienceCardData # For logging information
+from .airtable_service import AirtableService,airtable_service_instance
 from sentence_transformers import SentenceTransformer # Import sentence transformer
+from starlette import status
 
 # Configure basic logging
 logging.basicConfig(level=logging.INFO)
@@ -34,10 +39,11 @@ class ChatService:
     including RAG retrieval and interaction with the OpenAI API.
     """
 
-    def __init__(self):
+    def __init__(self, airtable_service: AirtableService):
         # Initialize necessary components here later
         # e.g., self.vector_store = initialize_vector_store()
         # e.g., self.data_store = load_data()
+        self.airtable_service = airtable_service
         self.openai_client = self.initialize_openai_client()
         self.chroma_client, self.chroma_collection = self.initialize_chroma_client()
         self.embedding_model = self.initialize_embedding_model()
@@ -94,61 +100,77 @@ class ChatService:
         # --- TODO: Implement history truncation logic for token limits ---
         # e.g., keep only the last N turns
 
-    def _retrieve_rag_context(self, message: str) -> str:
+    # --- Updated RAG Context Retrieval ---
+    # Now returns a tuple: (context_string, list_of_retrieved_airtable_records)
+    def _retrieve_rag_context(self, message: str) -> Tuple[str, List[Dict[str, Any]]]:
         """
-        Performs RAG retrieval using ChromaDB (via HTTP client).
-        Embeds the query message and queries the ChromaDB collection.
-        Formats the results into a context string for the LLM.
+        Performs RAG retrieval. Embeds query, queries ChromaDB for IDs,
+        fetches full details from Airtable, formats text context,
+        and returns both the text context and the raw Airtable records (with IDs).
         """
-        if not self.embedding_model or not self.chroma_collection:
-            logger.error("RAG components (embedding model or Chroma collection) not initialized.")
-            return "Error: Could not perform context retrieval."
+        default_error_return = ("Error: Could not perform context retrieval.", [])
+        if not self.embedding_model or not self.chroma_collection or not self.airtable_service:
+             logger.error("RAG components not fully initialized in ChatService.")
+             return default_error_return
 
         logger.info(f"Performing RAG retrieval for message: '{message}'")
+        retrieved_airtable_records: List[Dict[str, Any]] = [] # Store full records here {id: ..., **fields}
+        context_parts = []
         try:
             # 1. Embed the user query
             query_embedding = self.embedding_model.encode(message).tolist()
 
-            # 2. Query ChromaDB
+            # 2. Query ChromaDB for relevant IDs
             results = self.chroma_collection.query(
                 query_embeddings=[query_embedding],
                 n_results=NUM_RAG_RESULTS,
-                include=['metadatas', 'documents', 'distances']  # Include desired data
+                include=[] # Only need IDs (which are Airtable Record IDs)
             )
+            retrieved_ids = results.get('ids', [[]])[0]
 
-            # 3. Process and Format Results
-            retrieved_metadatas = results.get('metadatas', [[]])[0]  # Get list of metadata dicts
-            # retrieved_documents = results.get('documents', [[]])[0] # Get list of document texts
-            # retrieved_distances = results.get('distances', [[]])[0] # Get list of distances (lower is better)
+            if not retrieved_ids:
+                logger.info("No relevant document IDs found in ChromaDB.")
+                return ("No specific context found in the knowledge base.", []) # Return empty list
 
-            if not retrieved_metadatas:
-                logger.info("No relevant documents found in ChromaDB for the query.")
-                return "No specific context found in the knowledge base."
+            logger.info(f"Retrieved {len(retrieved_ids)} IDs from ChromaDB: {retrieved_ids}")
 
-            # Format the context string
-            context_parts = []
-            logger.info(f"Retrieved {len(retrieved_metadatas)} results from ChromaDB.")
-            for i, meta in enumerate(retrieved_metadatas):
-                # Customize this formatting based on what's most useful from your metadata
-                context_line = (
-                    f"[Result {i + 1}: "
-                    f"Name: {meta.get('experience_name', 'N/A')}, "
-                    f"Description: {meta.get('description', 'N/A')}, "
-                    # Add other relevant metadata fields loaded previously
-                    f"Price: {meta.get('price', 'N/A')}, "
-                    f"Type: {meta.get('type', 'N/A')}"
-                    # f"Distance: {retrieved_distances[i]:.4f}" # Optionally include distance
-                    f"]"
-                )
-                context_parts.append(context_line)
+            # 3. Fetch full details from Airtable using the retrieved IDs
+            for i, record_id in enumerate(retrieved_ids):
+                airtable_fields = self.airtable_service.get_record(record_id)
+                if airtable_fields:
+                    # Store the full record fields along with its ID for later processing
+                    record_with_id = {"id": record_id, **airtable_fields}
+                    retrieved_airtable_records.append(record_with_id)
+
+                    # Format context string for LLM using fresh Airtable data
+                    # Adjust field names based on your actual Airtable base structure
+                    context_line = (
+                        f"[Result {i+1} (ID: {record_id}): "
+                        f"Name: {airtable_fields.get('Experience Name', 'N/A')}, " # Example field name
+                        f"Description: {airtable_fields.get('Description', 'N/A')}, "
+                        f"Price: {airtable_fields.get('Price', 'N/A')}, "
+                        f"Type: {airtable_fields.get('Type', 'N/A')}"
+                        # Add other key fields useful for LLM context
+                        f"]"
+                    )
+                    context_parts.append(context_line)
+                else:
+                    # Log if an ID retrieved from Chroma doesn't exist in Airtable (might happen if sync is delayed)
+                    logger.warning(f"Could not fetch Airtable details for retrieved ID: {record_id}. It might have been deleted.")
+
+            if not context_parts:
+                logger.info("No details found in Airtable for the retrieved IDs.")
+                return ("Context details could not be retrieved.", []) # Return empty list
 
             formatted_context = "Context from knowledge base:\n" + "\n".join(context_parts)
-            logger.info(f"Formatted RAG context:\n{formatted_context}")
-            return formatted_context
+            logger.info(f"Formatted RAG context using Airtable data:\n{formatted_context}")
+            # Return both the context string and the list of full records
+            return formatted_context, retrieved_airtable_records
 
         except Exception as e:
             logger.error(f"Error during RAG retrieval: {e}", exc_info=True)
-            return "Error: Failed to retrieve context information."
+            # Return error string and empty list
+            return ("Error: Failed to retrieve context information.", [])
 
     def _call_openai_api(self, message: str, history: List[Dict[str, str]], context: str) -> str:
         """
@@ -218,6 +240,50 @@ class ChatService:
             logger.error(f"An unexpected error occurred during OpenAI API call: {e}", exc_info=True)
             return "Error: An unexpected error occurred while contacting the AI service."
 
+    def _map_airtable_to_card_data(self, airtable_record: Dict[str, Any]) -> Optional[ExperienceCardData]:
+        """
+        Maps fields from a retrieved Airtable record (including its ID)
+        to the ExperienceCardData Pydantic model.
+        Handles potential missing fields and type conversions.
+
+        Args:
+            airtable_record: A dictionary containing the 'id' (Airtable Record ID)
+                             and the 'fields' dictionary fetched from Airtable.
+                             Example: {'id': 'recXXX', 'Experience Name': 'Yoga', ...}
+
+        Returns:
+            An ExperienceCardData object if mapping is successful, otherwise None.
+        """
+        try:
+            # Extract image URL (example assumes 'Attachments' field containing a list of objects)
+            # Adjust 'Attachments' based on your actual Airtable field name for images
+            image_url = None
+            attachments = airtable_record.get('Attachments')
+            if isinstance(attachments, list) and len(attachments) > 0:
+                # Get URL from the first attachment, assuming it has a 'url' key
+                # You might need more complex logic if you have multiple images or different structures
+                image_url = attachments[0].get('url')
+
+            # Create the card data object using field names from your Airtable base
+            # Use .get() with defaults to handle potentially missing fields gracefully
+            card_data = ExperienceCardData(
+                id=airtable_record.get('id', 'missing_id'), # Use the ID passed in the dictionary key
+                name=airtable_record.get('Experience Name', 'N/A'), # Adjust field name as per your Airtable
+                description=airtable_record.get('Description'), # Optional field
+                image_url=image_url, # Use the extracted URL
+                price=str(airtable_record.get('Price', '')), # Ensure string, adjust field name
+                duration=str(airtable_record.get('Duration', '')), # Ensure string, adjust field name
+                type=airtable_record.get('Type', [])[0], # Adjust field name
+                url=airtable_record.get('URL') # Adjust field name for details/booking link
+                # Map other fields from your ExperienceCardData model here
+                # e.g., location=airtable_record.get('Location')
+            )
+            return card_data
+        except Exception as e:
+            # Log error if mapping fails for a specific record
+            logger.error(f"Error mapping Airtable record {airtable_record.get('id')} to Card Data: {e}", exc_info=True)
+            return None # Return None if mapping fails
+
 
     async def process_chat_message(self, session_id: str, user_message: str) -> str:
         """
@@ -225,21 +291,49 @@ class ChatService:
         Orchestrates history management, RAG, and OpenAI call.
         """
         logger.info(f"Processing message for session {session_id}: '{user_message}'")
+        suggested_experiences_data = []
+        try: 
+            # 1. Retrieve conversation history
+            history = self._get_conversation_history(session_id)
 
-        # 1. Retrieve conversation history
-        history = self._get_conversation_history(session_id)
+            # 2. Perform RAG retrieval - Returns (context_str, airtable_records)
+            context_str, airtable_records = self._retrieve_rag_context(user_message)
 
-        # 2. Perform RAG retrieval
-        context = self._retrieve_rag_context(user_message)
+            # Handle potential errors from RAG retrieval itself
+            if context_str.startswith("Error:"):
+                    ai_text_reply = context_str # Pass the RAG error message back
+                    # Don't proceed to OpenAI call if context retrieval failed
+            else:
+                # 3. Call OpenAI API with the text context
+                ai_text_reply = self._call_openai_api(user_message, history, context_str)
 
-        # 3. Call OpenAI API (or placeholder)
-        ai_reply = self._call_openai_api(user_message, history, context)
+                # 4. Prepare structured data if RAG returned records and OpenAI call didn't error
+                if airtable_records and not ai_text_reply.startswith("Error:"):
+                    suggestions = []
+                    for record in airtable_records:
+                        card_data = self._map_airtable_to_card_data(record)
+                        if card_data: # Only add if mapping was successful
+                            suggestions.append(card_data)
 
-        # 4. Update conversation history
-        self._update_conversation_history(session_id, user_message, ai_reply)
+                    if suggestions: # Only assign if we successfully created some cards
+                            suggested_experiences_data = suggestions
+                            logger.info(f"Prepared {len(suggested_experiences_data)} structured suggestions.")
+                    else:
+                            logger.warning("RAG retrieved records, but failed to map any to card data.")
+            # 5. Update conversation history (only if AI reply wasn't an error)
+            if not ai_text_reply.startswith("Error:"):
+                    self._update_conversation_history(session_id, user_message, ai_text_reply)
+            else:
+                logger.warning(f"Did not save error reply to history for session {session_id}")
+        except Exception as e:
+            logger.error(f"Unexpected error in process_chat_message for session {session_id}: {e}", exc_info=True)
+            ai_text_reply = "An unexpected error occurred while processing your message."
+            suggested_experiences_data = None # Ensure suggestions are None on error
 
-        logger.info(f"Generated reply for session {session_id}: '{ai_reply}'")
-        return ai_reply
+        logger.info(f"Generated reply for session {session_id}: '{ai_text_reply}'")
+        # Return both the text reply and the structured data
+        return ai_text_reply, suggested_experiences_data
+
 
 
     async def transcribe_audio(self, audio_bytes: bytes, filename: str = "audio.webm") -> str:
@@ -376,8 +470,24 @@ class ChatService:
 # --- Optional: Singleton pattern or dependency injection setup ---
 # For simplicity in POC, we can create a single instance here
 # In a larger app, use FastAPI's dependency injection
-chat_service_instance = ChatService()
+chat_service_instance = None
+if airtable_service_instance: # Check if AirtableService initialized correctly
+    try:
+        # Pass the airtable_service_instance to the constructor
+        chat_service_instance = ChatService(airtable_service_instance)
+    except RuntimeError as e:
+        logger.critical(f"Failed to initialize ChatService: {e}")
+        chat_service_instance = None
+else:
+     logger.critical("Cannot initialize ChatService because AirtableService failed to initialize.")
+
 
 def get_chat_service() -> ChatService:
     """Dependency injector for the ChatService."""
+    if chat_service_instance is None:
+         # Raise appropriate HTTP exception if service failed to initialize
+         raise HTTPException(
+             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+             detail="Chat service is not available due to initialization errors."
+         )
     return chat_service_instance

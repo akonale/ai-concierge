@@ -34,13 +34,20 @@ async def handle_chat_message(
     logger.info(f"Received chat request for session: {request.session_id}")
     try:
         # Process the message using the chat service
-        ai_reply = await chat_service.process_chat_message(
+        # ChatService.process_chat_message now returns a tuple:
+        # (ai_text_reply, list_of_experience_card_data | None)
+        ai_reply_text, suggestions = await chat_service.process_chat_message(
             session_id=request.session_id,
             user_message=request.message
         )
 
-        # Return the successful response
-        return ChatResponse(reply=ai_reply, session_id=request.session_id, transcribed_text=request.message)
+        # Return the successful response using the updated ChatResponse model
+        return ChatResponse(
+            reply=ai_reply_text,
+            session_id=request.session_id,
+            transcribed_text=request.message,
+            suggested_experiences=suggestions # Pass the list (or None) received from the service
+        )
 
     except Exception as e:
         # Log the error for debugging
@@ -51,7 +58,6 @@ async def handle_chat_message(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while processing your message."
         )
-
 
 @router.post(
     "/audio",
@@ -96,19 +102,20 @@ async def handle_audio_message(
              )
 
         # Process the audio message using the chat service
-        # This now returns a tuple: (transcribed_text, ai_reply)
-        transcribed_text, ai_reply = await chat_service.process_audio_message(
+        # Assume this now returns a tuple: (transcribed_text, ai_reply, suggestions)
+        transcribed_text, ai_reply, suggestions = await chat_service.process_audio_message(
             session_id=session_id,
             audio_bytes=audio_bytes,
             filename=audio_file.filename # Pass filename
         )
 
-        logger.info(f"Sending back {session_id} from audio: '{ai_reply}' for question: '{transcribed_text}'")
-        # Return the successful response, including the transcribed text
+        logger.info(f"Sending back {session_id} from audio: '{ai_reply}' for question: '{transcribed_text}' with suggestions: {suggestions is not None}")
+        # Return the successful response, including the transcribed text and suggestions
         return ChatResponse(
             reply=ai_reply,
             session_id=session_id,
-            transcribed_text=transcribed_text # Include the transcription
+            transcribed_text=transcribed_text, # Include the transcription
+            suggested_experiences=suggestions # Include the suggestions
         )
 
     except HTTPException as http_exc:

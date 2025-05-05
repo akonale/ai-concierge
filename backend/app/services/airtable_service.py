@@ -105,6 +105,7 @@ class AirtableService:
 
 
 # --- Singleton or Dependency Injection ---
+airtable_service_instance = None
 try:
     airtable_service_instance = AirtableService()
 except (ValueError, RuntimeError) as e:
