@@ -1,28 +1,8 @@
-## Start everything
+## Website
 
-```shell
-docker-compose up -d
-```
-And open http://localhost:3000
+https://ai-concierge-frontend.onrender.com/
 
-## Start vector db
+### Loading new data
 
-```shell
-docker run -v ./chroma-data:/data -p 8000:8000 chromadb/chroma
-```
-
-## Start backend
-```bash
-cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 5000
-```
-
-## Start frontend
-
-```bash
-cd frontend
-npm run dev
-```
-
-## Browser
-localhost:3000
+1. Login to [airtable](https://airtable.com/appiDGVvSB7ySvUSw/tblgYyb5f5afaASdf/viwwvo6YcttoFqPwd?blocks=hide) and add data
+2. Use [admin ui](https://ai-concierge-backend.onrender.com/docs#/Admin/trigger_sync_api_v1_admin_trigger_sync_post) of backend to sync data with vector db.
