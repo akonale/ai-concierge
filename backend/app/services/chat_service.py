@@ -10,7 +10,6 @@ from fastapi import HTTPException
 import openai
 
 from ..utils.mapping import map_airtable_to_card_data
-
 from ..models.models import ExperienceCardData # For logging information
 from .airtable_service import AirtableService,airtable_service_instance
 from sentence_transformers import SentenceTransformer # Import sentence transformer
