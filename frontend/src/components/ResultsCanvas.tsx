@@ -2,6 +2,7 @@
 import React from 'react';
 // Assuming ExperienceCardData is defined in @/types or similar
 import { ExperienceCardData } from '@/types';
+import ExperienceCardSkeleton from './ExperienceCardSkeleton';
 
 // --- Experience Card Component ---
 interface ExperienceCardProps {
@@ -105,9 +106,14 @@ const ResultsCanvas: React.FC<ResultsCanvasProps> = ({ suggestedExperiences, isL
 
       {/* Loading State */}
       {isLoading ? (
-        // Center loading indicator, adjust height based on layout
-        <div className={`flex justify-center items-center ${layout === 'vertical' ? 'h-full' : 'h-full w-full min-w-[100px]'}`}> {/* Min width for horizontal */}
-           <p className="text-black italic animate-pulse">Loading suggestions...</p>
+        // Use a container that matches the layout direction
+        <div className={layout === 'horizontal' ? 'flex h-full items-start' : ''}>
+        {/* Render multiple skeleton cards */}
+        {[...Array(3)].map((_, index) => ( // Render 3 skeletons, adjust count as needed
+          <ExperienceCardSkeleton key={`skeleton-${index}`} layout={layout} />
+        ))}
+        {/* Add padding element at the end of horizontal scroll */}
+        {layout === 'horizontal' && <div className="flex-shrink-0 w-3"></div>}
         </div>
       ) : topSuggestions.length > 0 ? (
         // Render Cards: Use a flex container only for horizontal layout

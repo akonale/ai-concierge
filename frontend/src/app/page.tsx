@@ -8,6 +8,7 @@ import Sidebar from '@/components/Sidebar';
 import ChatPanel from '@/components/ChatPanel';
 import ResultsCanvas from '@/components/ResultsCanvas'; // Import the new component
 import { ExperienceCardData, DefaultExperiences } from '@/types'; // Import the type
+import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'; // Or use Folder icons if preferred
 
 // Helper function to check screen size (consider moving to utils)
 const isDesktop = () => typeof window !== 'undefined' && window.innerWidth >= 768; // 768px is Tailwind's 'md' breakpoint
@@ -24,19 +25,16 @@ export default function Home() {
   // const [isInitialLoading, setIsInitialLoading] = useState<boolean>(false); // Set true if fetching defaults
   // State for controlling the overlay sidebar visibility, managed here
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false); // Default closed
+  const [showMobileResults, setShowMobileResults] = useState<boolean>(true); // Default hidden
 
     // --- Handle Resize ---
   // Adjust sidebar state if window is resized across the breakpoint
   useEffect(() => {
     const handleResize = () => {
-      // Only automatically open/close on resize if it crosses the md threshold
-      // You might want more nuanced logic depending on user interaction preference
-      if (isDesktop()) {
-        // If resizing to desktop, ensure it's open (or restore previous desktop state)
-        // setIsSidebarOpen(true); // Simplest: always open on resize to desktop
-      } else {
-        // If resizing to mobile, ensure it's closed
-        setIsSidebarOpen(false);
+      const desktop = isDesktop();
+      setIsSidebarOpen(desktop); // Keep sidebar open/closed based on desktop/mobile
+      if (desktop) {
+          setShowMobileResults(false); // Ensure mobile results are hidden when switching to desktop
       }
     };
 
@@ -87,6 +85,11 @@ export default function Home() {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
+  // --- Function to toggle mobile results view ---
+  const toggleMobileResults = () => {
+    setShowMobileResults(!showMobileResults);
+  }
+  
   return (
     // Main container: Full screen height, flex column layout, overflow hidden prevents scrolling the whole page
     <div className="flex flex-col h-screen bg-theme-background overflow-hidden"> {/* Use theme background if defined */}
@@ -123,18 +126,49 @@ export default function Home() {
              <ChatPanel onNewSuggestions={setSuggestions} />
           </div>
 
-          {/* Mobile Results Canvas Container (Horizontal Scroll) */}
-          {/* Displayed only on small screens (block) and hidden on medium+ (md:hidden) */}
-          {/* flex-shrink-0 prevents it from shrinking */}
-          {/* Added border and background for visual separation */}
-          <div className="block md:hidden flex-shrink-0 border-t-4 border-black bg-green-100">
-             {/* Pass the results state and specify horizontal layout */}
-             <ResultsCanvas
-                suggestedExperiences={suggestions} // Use the correct prop name from ResultsCanvas.txt
-                isLoading={isLoadingDefaults}
-                layout="horizontal"
-             />
-          </div>
+            {/* --- Mobile Results Toggle Button --- */}
+            {/* Shown only on mobile (block md:hidden) */}
+            {/* Placed above the results canvas */}
+            <div className="block md:hidden p-1 bg-gray-100 border-t-2 border-b-2 border-black flex justify-center">
+                <button
+                    onClick={toggleMobileResults}
+                    className="flex items-center justify-center text-xs font-medium text-black hover:text-gray-700 w-full"
+                    aria-expanded={showMobileResults}
+                    // Add aria-controls="mobile-results-panel" if ResultsCanvas has id="mobile-results-panel"
+                >
+                    {/* Use Chevron Icons */}
+                    {showMobileResults ? (
+                        <ChevronUpIcon className="h-4 w-4 ml-1" />
+                    ) : (
+                        <ChevronDownIcon className="h-4 w-4 ml-1" />
+                    )}
+                    {/* Alternative: Folder Icons (Requires different import) */}
+                    {/* {showMobileResults ? (
+                        <FolderMinusIcon className="h-4 w-4 ml-1" />
+                    ) : (
+                        <FolderPlusIcon className="h-4 w-4 ml-1" />
+                    )} */}
+                </button>
+            </div>
+
+            {/* Mobile Results Canvas Container (Horizontal Scroll) */}
+            {/* Use conditional height and visibility for toggle effect */}
+            {/* Added transition for smooth opening/closing */}
+            {/* Ensure overflow-hidden is present for the height transition */}
+            <div className={`block md:hidden flex-shrink-0 bg-green-100 overflow-hidden transition-all duration-300 ease-in-out ${
+                showMobileResults ? 'h-56 sm:h-64 border-t-4 border-black' : 'h-0 border-t-0' // Toggle height and border
+            }`}>
+               {/* Render canvas content only when it's meant to be visible */}
+               {/* This prevents rendering potentially many cards when hidden */}
+               {showMobileResults && (
+                    <ResultsCanvas
+                        suggestedExperiences={suggestions}
+                        isLoading={isLoadingDefaults}
+                        layout="horizontal"
+                        // id="mobile-results-panel" // Add ID for aria-controls
+                    />
+               )}
+            </div>
         </div>
 
         {/* Desktop Results Canvas Container (Vertical Scroll) */}
